@@ -23,11 +23,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - id: vars
+        run: echo "owner=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+
       - uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/comfyui-a2rc:v1
-            ghcr.io/${{ github.repository_owner }}/comfyui-a2rc:sha-${{ github.sha }}
+            ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:v1
+            ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}
