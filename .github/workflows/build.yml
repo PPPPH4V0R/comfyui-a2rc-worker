@@ -34,3 +34,5 @@ jobs:
           tags: |
             ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:v1
             ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

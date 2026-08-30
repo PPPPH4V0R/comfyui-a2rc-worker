@@ -9,9 +9,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
 # Make sure ComfyUI core is on the latest stable release so the Qwen-Image-Edit-2511
 # nodes used by this workflow (TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus,
 # FluxKontextMultiReferenceLatentMethod, CFGNorm) are present.
-# (upgrade comfy-cli itself first: the base image's pinned 1.13.0 predates the
-# "update comfy --version" flag)
-RUN uv pip install --upgrade comfy-cli \
+# (explicitly target /opt/venv — the same venv the base image's `comfy` entrypoint
+# resolves from via PATH — so the upgrade actually lands where `comfy` looks)
+RUN uv pip install --python /opt/venv/bin/python --upgrade comfy-cli \
+    && which comfy && comfy --version \
     && comfy --workspace /comfyui --skip-prompt update comfy --version latest
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
