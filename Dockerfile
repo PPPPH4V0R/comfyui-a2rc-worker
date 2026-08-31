@@ -25,8 +25,12 @@ RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
-# CUDA-matched torch build already in the base image.
+# CUDA-matched torch build already in the base image. Explicitly target
+# /opt/venv here too — an unqualified `uv pip install` landed in the wrong
+# place before (same class of bug as the comfy-cli fix above), which left
+# ComfyUI's actual runtime venv without cv2 and the whole node silently
+# failed to import ("ModuleNotFoundError: No module named 'cv2'").
 RUN git clone --depth 1 https://github.com/chflame163/ComfyUI_LayerStyle.git \
       custom_nodes/ComfyUI_LayerStyle \
     && grep -v -i '^torch' custom_nodes/ComfyUI_LayerStyle/requirements.txt > /tmp/layerstyle-reqs.txt \
-    && uv pip install -r /tmp/layerstyle-reqs.txt
+    && uv pip install --python /opt/venv/bin/python -r /tmp/layerstyle-reqs.txt
