@@ -6,14 +6,14 @@ WORKDIR /comfyui
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Make sure ComfyUI core is on the latest stable release so the Qwen-Image-Edit-2511
-# nodes used by this workflow (TextEncodeQwenImageEdit, TextEncodeQwenImageEditPlus,
-# FluxKontextMultiReferenceLatentMethod, CFGNorm) are present.
-# (explicitly target /opt/venv — the same venv the base image's `comfy` entrypoint
-# resolves from via PATH — so the upgrade actually lands where `comfy` looks)
-RUN uv pip install --python /opt/venv/bin/python --upgrade comfy-cli \
-    && which comfy && comfy --version \
-    && comfy --workspace /comfyui --skip-prompt update comfy --version latest
+# NOTE: we deliberately do NOT run `comfy update comfy` here. It reinstalls
+# ComfyUI's requirements.txt, which contains a bare (unpinned) `torch` — that
+# pulls PyPI's default CUDA-13 wheel and clobbers the base image's carefully
+# pinned CUDA-12.8 torch build, which then fails to initialize on these hosts'
+# drivers ("NVIDIA driver ... too old (found version 12060)"). The 5.8.6-base
+# tag (built 2026-06) already ships a recent enough ComfyUI core for the
+# Qwen-Image-Edit-2511 nodes this workflow needs — verified at deploy time via
+# a smoke test rather than blindly upgrading.
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
