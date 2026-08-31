@@ -56,13 +56,12 @@
 <div id="status"></div>
 <div id="result"></div>
 
-<p class="hint">这个页面直接从浏览器调用 Runpod serverless 端点，没有中间服务器。链接里带着调用密钥，请不要分享给别人。</p>
+<p class="hint">这个页面通过一个小型代理调用 Runpod serverless 端点，调用密钥保存在代理端，不会出现在这个页面的源码里。</p>
 
 <script>
-// ---- config: this endpoint's own API key, scoped to this deployment only ----
-const RUNPOD_API_KEY = "rpa_1RY8GRP29QPGMTKOSXKQUOCCPYL0LDTGMYDY0AMR15yxrr"; // scoped to comfyui-a2rc only
-const ENDPOINT_ID = "6gk48bgc3z1xoa";
-const API_BASE = "https://api.runpod.ai/v2/" + ENDPOINT_ID;
+// ---- config: calls go through a Cloudflare Worker that holds the Runpod
+// API key server-side, so no secret ever appears in this page's source ----
+const API_BASE = "https://a2rc-proxy.368014021.workers.dev";
 
 // ---- workflow template (API format), with the LoRA already pointed at the
 // author's current v2.0 file since v1.0 is no longer published on Civitai ----
@@ -139,7 +138,7 @@ submitEl.onclick = async () => {
   workflow["3"].inputs.seed = parseInt(seedEl.value, 10) || Math.floor(Math.random() * 1e15);
 
   const payload = { input: { workflow, images: [{ name: "input.png", image: b64 }] } };
-  const headers = { "Authorization": "Bearer " + RUNPOD_API_KEY, "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json" };
 
   statusEl.textContent = '提交任务中…';
   let jobId;
