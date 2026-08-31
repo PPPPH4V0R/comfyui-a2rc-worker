@@ -8,12 +8,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
 
 # NOTE: we deliberately do NOT run `comfy update comfy` here. It reinstalls
 # ComfyUI's requirements.txt, which contains a bare (unpinned) `torch` — that
-# pulls PyPI's default CUDA-13 wheel and clobbers the base image's carefully
-# pinned CUDA-12.8 torch build, which then fails to initialize on these hosts'
-# drivers ("NVIDIA driver ... too old (found version 12060)"). The 5.8.6-base
-# tag (built 2026-06) already ships a recent enough ComfyUI core for the
-# Qwen-Image-Edit-2511 nodes this workflow needs — verified at deploy time via
-# a smoke test rather than blindly upgrading.
+# pulls PyPI's default (newest) CUDA wheel, which is even further ahead of
+# what these hosts' drivers support than the problem fixed below. The
+# 5.8.6-base tag (built 2026-06) already ships a recent enough ComfyUI core
+# for the Qwen-Image-Edit-2511 nodes this workflow needs.
+#
+# Live-diagnosed: even the STOCK base image fails to start on the A100 SXM
+# hosts available in this account's data center — torch there is pinned to a
+# cu128 build (needs driver >=570), but these hosts report
+# "found version 12060" (driver capped around CUDA 12.6, i.e. ~560.x).
+# Re-pin torch/vision/audio to the cu126 wheel (same torch version, older
+# CUDA build, needs only driver >=560) so it actually initializes here.
+RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
+      torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
+      --index-url https://download.pytorch.org/whl/cu126
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
