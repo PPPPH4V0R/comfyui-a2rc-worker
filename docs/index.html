@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>动漫转写实真人</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 1.3rem; }
+  .row { margin: 18px 0; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  textarea, input[type=number] { width: 100%; box-sizing: border-box; padding: 10px; font-size: 1rem; border-radius: 6px; border: 1px solid #999; }
+  textarea { min-height: 70px; resize: vertical; }
+  .seed-row { display: flex; gap: 8px; align-items: center; }
+  .seed-row input { flex: 1; }
+  button { padding: 12px 20px; font-size: 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #999; }
+  #submit { width: 100%; font-weight: 600; }
+  #submit:disabled { opacity: .5; }
+  #drop { border: 2px dashed #888; border-radius: 8px; padding: 24px; text-align: center; cursor: pointer; }
+  #preview, #result img { max-width: 100%; border-radius: 8px; margin-top: 10px; display: none; }
+  #status { margin-top: 14px; font-size: .95rem; color: #888; white-space: pre-line; }
+  #result { margin-top: 20px; }
+  #result a { display: inline-block; margin-top: 8px; }
+  .error { color: #d33; }
+  .hint { font-size: .8rem; color: #999; margin-top: 20px; }
+</style>
+</head>
+<body>
+<h1>动漫转写实真人 (Qwen-Image-Edit-2511)</h1>
+
+<div class="row">
+  <label>上传图片</label>
+  <div id="drop">点击选择图片（拍照或相册）</div>
+  <input type="file" id="file" accept="image/*" style="display:none">
+  <img id="preview">
+</div>
+
+<div class="row">
+  <label>提示词</label>
+  <textarea id="prompt">transform the image to realistic photograph,</textarea>
+</div>
+
+<div class="row">
+  <label>随机种子</label>
+  <div class="seed-row">
+    <input type="number" id="seed">
+    <button type="button" id="randomSeed">🎲 随机</button>
+  </div>
+</div>
+
+<div class="row">
+  <button id="submit" disabled>开始生成</button>
+</div>
+
+<div id="status"></div>
+<div id="result"></div>
+
+<p class="hint">这个页面直接从浏览器调用 Runpod serverless 端点，没有中间服务器。链接里带着调用密钥，请不要分享给别人。</p>
+
+<script>
+// ---- config: this endpoint's own API key, scoped to this deployment only ----
+const RUNPOD_API_KEY = "rpa_1RY8GRP29QPGMTKOSXKQUOCCPYL0LDTGMYDY0AMR15yxrr"; // scoped to comfyui-a2rc only
+const ENDPOINT_ID = "6gk48bgc3z1xoa";
+const API_BASE = "https://api.runpod.ai/v2/" + ENDPOINT_ID;
+
+// ---- workflow template (API format), with the LoRA already pointed at the
+// author's current v2.0 file since v1.0 is no longer published on Civitai ----
+const WORKFLOW_TEMPLATE = {
+  "3": {"inputs": {"seed": 873783274557871, "steps": 4, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["75", 0], "positive": ["325", 0], "negative": ["326", 0], "latent_image": ["88", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}},
+  "8": {"inputs": {"samples": ["3", 0], "vae": ["39", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}},
+  "37": {"inputs": {"unet_name": "qwen_image_edit_2511_bf16.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}},
+  "38": {"inputs": {"clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}},
+  "39": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}},
+  "66": {"inputs": {"shift": 3, "model": ["297", 0]}, "class_type": "ModelSamplingAuraFlow", "_meta": {"title": "ModelSamplingAuraFlow"}},
+  "75": {"inputs": {"strength": 1, "pre_cfg": false, "model": ["66", 0]}, "class_type": "CFGNorm", "_meta": {"title": "CFGNorm"}},
+  "77": {"inputs": {"prompt": "", "clip": ["38", 0], "vae": ["39", 0]}, "class_type": "TextEncodeQwenImageEdit", "_meta": {"title": "TextEncodeQwenImageEdit"}},
+  "78": {"inputs": {"image": "input.png"}, "class_type": "LoadImage", "_meta": {"title": "Load image"}},
+  "88": {"inputs": {"pixels": ["301", 0], "vae": ["39", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}},
+  "110": {"inputs": {"prompt": "transform the image to realistic photograph,", "clip": ["38", 0], "vae": ["39", 0], "image1": ["301", 0]}, "class_type": "TextEncodeQwenImageEditPlus", "_meta": {"title": "TextEncodeQwenImageEditPlus"}},
+  "169": {"inputs": {"lora_name": "Qwen_Image_Edit_2511_Lightning_4步加速Lora_fp32.safetensors", "strength_model": 1.0000000000000002, "model": ["37", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}},
+  "189": {"inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}, "class_type": "SaveImage", "_meta": {"title": "Save Image"}},
+  "297": {"inputs": {"lora_name": "AnythingtoRealCharacters2511_20.safetensors", "strength_model": 1.0000000000000002, "model": ["169", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}},
+  "301": {"inputs": {"aspect_ratio": "original", "proportional_width": 1, "proportional_height": 1, "fit": "crop", "method": "nearest", "round_to_multiple": "None", "scale_to_side": "longest", "scale_to_length": 2024, "background_color": "#000000", "image": ["78", 0]}, "class_type": "LayerUtility: ImageScaleByAspectRatio V2", "_meta": {"title": "LayerUtility: ImageScaleByAspectRatio V2"}},
+  "325": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["110", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}},
+  "326": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["77", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}
+};
+
+const dropEl = document.getElementById('drop');
+const fileEl = document.getElementById('file');
+const previewEl = document.getElementById('preview');
+const submitEl = document.getElementById('submit');
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+const seedEl = document.getElementById('seed');
+let selectedFile = null;
+
+seedEl.value = Math.floor(Math.random() * 1e15);
+document.getElementById('randomSeed').onclick = () => {
+  seedEl.value = Math.floor(Math.random() * 1e15);
+};
+
+dropEl.onclick = () => fileEl.click();
+fileEl.onchange = () => { if (fileEl.files.length) setFile(fileEl.files[0]); };
+
+function setFile(f) {
+  selectedFile = f;
+  previewEl.src = URL.createObjectURL(f);
+  previewEl.style.display = 'block';
+  submitEl.disabled = false;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+submitEl.onclick = async () => {
+  if (!selectedFile) return;
+  submitEl.disabled = true;
+  resultEl.innerHTML = '';
+  statusEl.textContent = '编码图片中…';
+
+  let b64;
+  try {
+    b64 = await fileToBase64(selectedFile);
+  } catch (e) {
+    statusEl.innerHTML = '<span class="error">读取图片失败: ' + e.message + '</span>';
+    submitEl.disabled = false;
+    return;
+  }
+
+  const workflow = JSON.parse(JSON.stringify(WORKFLOW_TEMPLATE));
+  workflow["110"].inputs.prompt = document.getElementById('prompt').value;
+  workflow["3"].inputs.seed = parseInt(seedEl.value, 10) || Math.floor(Math.random() * 1e15);
+
+  const payload = { input: { workflow, images: [{ name: "input.png", image: b64 }] } };
+  const headers = { "Authorization": "Bearer " + RUNPOD_API_KEY, "Content-Type": "application/json" };
+
+  statusEl.textContent = '提交任务中…';
+  let jobId;
+  try {
+    const r = await fetch(API_BASE + "/run", { method: "POST", headers, body: JSON.stringify(payload) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+    jobId = data.id;
+  } catch (e) {
+    statusEl.innerHTML = '<span class="error">提交失败: ' + e.message + '</span>';
+    submitEl.disabled = false;
+    return;
+  }
+
+  statusEl.textContent = '排队/冷启动中，第一次调用可能要 1-2 分钟…';
+  const poll = async () => {
+    let data;
+    try {
+      const r = await fetch(API_BASE + "/status/" + jobId, { headers });
+      data = await r.json();
+    } catch (e) {
+      statusEl.textContent = '网络波动，继续重试…';
+      setTimeout(poll, 4000);
+      return;
+    }
+    if (data.status === 'COMPLETED') {
+      const img = (data.output && data.output.images && data.output.images[0]);
+      if (!img) {
+        statusEl.innerHTML = '<span class="error">完成但没有返回图片</span>';
+        submitEl.disabled = false;
+        return;
+      }
+      statusEl.textContent = '完成！';
+      const dataUrl = 'data:image/png;base64,' + img.data;
+      resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.png">下载结果</a>';
+      submitEl.disabled = false;
+    } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
+      statusEl.innerHTML = '<span class="error">失败: ' + (data.error || data.status) + '</span>';
+      submitEl.disabled = false;
+    } else {
+      statusEl.textContent = '状态: ' + data.status + ' …';
+      setTimeout(poll, 3000);
+    }
+  };
+  poll();
+};
+</script>
+</body>
+</html>
