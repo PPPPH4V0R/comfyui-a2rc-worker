@@ -40,14 +40,21 @@ RUN git clone --depth 1 https://github.com/chflame163/ComfyUI_LayerStyle.git \
 # lands somewhere ComfyUI's actual runtime process never sees).
 
 # GetImageSize+, SimpleMathDual+
+# Its requirements.txt pulls "rembg"/"transparent-background", which drag in
+# plain opencv-python-headless -- installing that AFTER LayerStyle's
+# opencv-contrib-python replaces cv2 with a build missing ximgproc (breaks
+# LayerStyle's guidedFilter-based functions). Filter it out; LayerStyle
+# already provides a full-featured cv2 for everyone to share.
 RUN git clone --depth 1 https://github.com/cubiq/ComfyUI_essentials.git \
       custom_nodes/ComfyUI_essentials \
-    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI_essentials/requirements.txt
+    && grep -v -i '^opencv' custom_nodes/ComfyUI_essentials/requirements.txt > /tmp/essentials-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/essentials-reqs.txt
 
-# ColorMatchV2, DrawMaskOnImage
+# ColorMatchV2, DrawMaskOnImage -- same opencv-clobbering issue as above.
 RUN git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git \
       custom_nodes/ComfyUI-KJNodes \
-    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI-KJNodes/requirements.txt
+    && grep -v -i '^opencv' custom_nodes/ComfyUI-KJNodes/requirements.txt > /tmp/kjnodes-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/kjnodes-reqs.txt
 
 # UltimateSDUpscale -- the actual upscale logic lives in a git submodule
 RUN git clone --recurse-submodules --depth 1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git \
