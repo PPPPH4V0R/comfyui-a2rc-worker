@@ -67,3 +67,11 @@ RUN git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git \
 # Krea2EditGroundedEncode, Krea2EditModelPatch -- single-file node, no extra deps
 RUN git clone --depth 1 https://github.com/lbouaraba/comfyui-krea2edit.git \
       custom_nodes/comfyui-krea2edit
+
+# The opencv-exclusion filters above only catch requirements.txt TOP-LEVEL
+# lines; transitive deps (e.g. essentials' "rembg" pulls in plain
+# opencv-python/-headless on its own) still silently overwrite LayerStyle's
+# opencv-contrib-python build regardless of filtering. Reinstall contrib as
+# the final, unconditional word after every other node pack's deps have
+# landed, so it's never the one left overwritten.
+RUN uv pip install --python /opt/venv/bin/python --force-reinstall opencv-contrib-python
