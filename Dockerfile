@@ -34,3 +34,29 @@ RUN git clone --depth 1 https://github.com/chflame163/ComfyUI_LayerStyle.git \
       custom_nodes/ComfyUI_LayerStyle \
     && grep -v -i '^torch' custom_nodes/ComfyUI_LayerStyle/requirements.txt > /tmp/layerstyle-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/layerstyle-reqs.txt
+
+# Custom nodes for the Krea2 workflows (all installs explicitly target
+# /opt/venv per the fix above -- an unqualified `uv pip install` silently
+# lands somewhere ComfyUI's actual runtime process never sees).
+
+# GetImageSize+, SimpleMathDual+
+RUN git clone --depth 1 https://github.com/cubiq/ComfyUI_essentials.git \
+      custom_nodes/ComfyUI_essentials \
+    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI_essentials/requirements.txt
+
+# ColorMatchV2, DrawMaskOnImage
+RUN git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git \
+      custom_nodes/ComfyUI-KJNodes \
+    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI-KJNodes/requirements.txt
+
+# UltimateSDUpscale -- the actual upscale logic lives in a git submodule
+RUN git clone --recurse-submodules --depth 1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git \
+      custom_nodes/ComfyUI_UltimateSDUpscale
+
+# Seed (rgthree), Label (rgthree) -- no requirements.txt, pure Python
+RUN git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git \
+      custom_nodes/rgthree-comfy
+
+# Krea2EditGroundedEncode, Krea2EditModelPatch -- single-file node, no extra deps
+RUN git clone --depth 1 https://github.com/lbouaraba/comfyui-krea2edit.git \
+      custom_nodes/comfyui-krea2edit
