@@ -6,19 +6,21 @@ WORKDIR /comfyui
 RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# NOTE: we deliberately do NOT run `comfy update comfy` here. It reinstalls
-# ComfyUI's requirements.txt, which contains a bare (unpinned) `torch` — that
-# pulls PyPI's default (newest) CUDA wheel, which is even further ahead of
-# what these hosts' drivers support than the problem fixed below. The
-# 5.8.6-base tag (built 2026-06) already ships a recent enough ComfyUI core
-# for the Qwen-Image-Edit-2511 nodes this workflow needs.
-#
-# Live-diagnosed: even the STOCK base image fails to start on the A100 SXM
-# hosts available in this account's data center — torch there is pinned to a
-# cu128 build (needs driver >=570), but these hosts report
-# "found version 12060" (driver capped around CUDA 12.6, i.e. ~560.x).
-# Re-pin torch/vision/audio to the cu126 wheel (same torch version, older
-# CUDA build, needs only driver >=560) so it actually initializes here.
+# The Krea2 workflows need a ComfyUI core new enough to offer "krea2" as a
+# CLIPLoader type (the 5.8.6-base tag, built 2026-06, predates it — confirmed
+# live: "type: 'krea2' not in (list of length 23)"). Update to latest, via an
+# upgraded comfy-cli (the base's pinned 1.13.0 predates the
+# "update comfy --version" flag; see the earlier live-diagnosis).
+RUN uv pip install --python /opt/venv/bin/python --upgrade comfy-cli \
+    && comfy --workspace /comfyui --skip-prompt update comfy --version latest
+
+# `comfy update comfy` reinstalls ComfyUI's requirements.txt, which contains
+# a bare (unpinned) `torch` — that pulls PyPI's default (newest) CUDA wheel.
+# Live-diagnosed: the A100 SXM hosts in this account's data center report
+# "found version 12060" (driver capped around CUDA 12.6, i.e. ~560.x), well
+# short of what a default (CUDA 13) torch build needs. Re-pin torch/vision/
+# audio to the cu126 wheel (same torch version, older CUDA build, needs only
+# driver >=560) AFTER the update above, so this is the last word on torch.
 RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
       torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
       --index-url https://download.pytorch.org/whl/cu126
