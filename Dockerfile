@@ -14,17 +14,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgl1 libglib2
 RUN uv pip install --python /opt/venv/bin/python --upgrade comfy-cli \
     && comfy --workspace /comfyui --skip-prompt update comfy --version latest
 
-# `comfy update comfy` reinstalls ComfyUI's requirements.txt, which contains
-# a bare (unpinned) `torch` — that pulls PyPI's default (newest) CUDA wheel.
-# Live-diagnosed: the A100 SXM hosts in this account's data center report
-# "found version 12060" (driver capped around CUDA 12.6, i.e. ~560.x), well
-# short of what a default (CUDA 13) torch build needs. Re-pin torch/vision/
-# audio to the cu126 wheel (same torch version, older CUDA build, needs only
-# driver >=560) AFTER the update above, so this is the last word on torch.
-RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
-      torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
-      --index-url https://download.pytorch.org/whl/cu126
-
 # `comfy update comfy` only pulls ComfyUI's git-managed CODE into /comfyui; it
 # does not touch the PACKAGE dependencies already installed in /opt/venv (the
 # actual launch venv start.sh uses). The newer code ends up calling into
@@ -33,11 +22,30 @@ RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
 # `comfy_kitchen.int8_attention_is_available()`, which the base image's older
 # comfy_kitchen doesn't have -> ComfyUI's main.py dies on import, surfacing
 # only as "ComfyUI server not reachable" with no indication why. Re-sync
-# every dependency in the *new* requirements.txt into /opt/venv (excluding
-# torch/vision/audio, already pinned correctly above) so nothing is left on
-# a stale version relative to the code that now imports it.
-RUN grep -v -iE '^(torch|torchvision|torchaudio)([=<> ]|$)' requirements.txt > /tmp/comfyui-reqs.txt \
-    && uv pip install --python /opt/venv/bin/python --upgrade -r /tmp/comfyui-reqs.txt
+# every dependency in the *new* requirements.txt into /opt/venv so nothing is
+# left on a stale version relative to the code that now imports it.
+#
+# NOTE: this step runs BEFORE the torch re-pin below, deliberately. Excluding
+# the literal "torch" line here is not enough -- some other package in this
+# same requirements.txt apparently *constrains* torch to a newer version than
+# 2.11.0, so `--upgrade` on the full set silently drags torch along with it
+# (back to a default/cu13 wheel) even with torch itself filtered out. Rather
+# than chase every transitive constraint, just let this step land wherever it
+# lands and force the correct torch build again immediately after.
+RUN uv pip install --python /opt/venv/bin/python --upgrade -r requirements.txt
+
+# `comfy update comfy`'s requirements.txt contains a bare (unpinned) `torch`,
+# and (per the note above) the sync step just before this one can also pull
+# in a newer torch transitively via some other package's constraint -- both
+# resolve to PyPI's default (newest) CUDA wheel. Live-diagnosed: the A100 SXM
+# hosts in this account's data center report "found version 12060" (driver
+# capped around CUDA 12.6, i.e. ~560.x), well short of what a default (CUDA
+# 13) torch build needs. Re-pin torch/vision/audio to the cu126 wheel (same
+# torch version, older CUDA build, needs only driver >=560) as the LAST word
+# on torch -- nothing after this line may touch it again.
+RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
+      torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
+      --index-url https://download.pytorch.org/whl/cu126
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
