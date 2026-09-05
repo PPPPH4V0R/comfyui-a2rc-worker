@@ -34,6 +34,10 @@ def handler(job):
         exists = os.path.exists(path)
         return {"exists": exists, "size": os.path.getsize(path) if exists else 0}
 
+    if action == "diskfree":
+        total, used, free = shutil.disk_usage(inp.get("path", "/runpod-volume"))
+        return {"total": total, "used": used, "free": free}
+
     # default: download a URL straight onto the network volume
     url = inp["url"]
     dest = inp["dest"]
@@ -45,6 +49,9 @@ def handler(job):
     cmd.append(url)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=inp.get("timeout", 3300))
     size = os.path.getsize(dest) if os.path.exists(dest) else 0
+    if result.returncode != 0 and os.path.exists(dest):
+        # don't leave a truncated file behind under the real filename
+        os.remove(dest)
     return {
         "returncode": result.returncode,
         "stdout": result.stdout[-2000:],
