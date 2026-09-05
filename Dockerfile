@@ -25,6 +25,20 @@ RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
       torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
       --index-url https://download.pytorch.org/whl/cu126
 
+# `comfy update comfy` only pulls ComfyUI's git-managed CODE into /comfyui; it
+# does not touch the PACKAGE dependencies already installed in /opt/venv (the
+# actual launch venv start.sh uses). The newer code ends up calling into
+# newer APIs of packages still at their old base-image versions. Live-
+# diagnosed crash: core's attention.py now calls
+# `comfy_kitchen.int8_attention_is_available()`, which the base image's older
+# comfy_kitchen doesn't have -> ComfyUI's main.py dies on import, surfacing
+# only as "ComfyUI server not reachable" with no indication why. Re-sync
+# every dependency in the *new* requirements.txt into /opt/venv (excluding
+# torch/vision/audio, already pinned correctly above) so nothing is left on
+# a stale version relative to the code that now imports it.
+RUN grep -v -iE '^(torch|torchvision|torchaudio)([=<> ]|$)' requirements.txt > /tmp/comfyui-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python --upgrade -r /tmp/comfyui-reqs.txt
+
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
 # CUDA-matched torch build already in the base image. Explicitly target
