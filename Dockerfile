@@ -94,6 +94,16 @@ RUN git clone --depth 1 https://github.com/WASasquatch/was-node-suite-comfyui.gi
     && grep -v -i '^opencv' custom_nodes/was-node-suite-comfyui/requirements.txt > /tmp/was-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/was-reqs.txt
 
+# RES4LYF -- not used for any of its own sampler nodes here, only for its
+# import-time side effect of appending "beta57" (and others) to comfy's
+# global SCHEDULER_NAMES list, which is what makes "beta57" selectable as a
+# plain KSampler scheduler value (the workflow's node 7 needs exactly that;
+# live-diagnosed: "scheduler: 'beta57' not in [...]" without this pack).
+RUN git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git \
+      custom_nodes/RES4LYF \
+    && grep -v -i '^opencv' custom_nodes/RES4LYF/requirements.txt > /tmp/res4lyf-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/res4lyf-reqs.txt
+
 # The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
 # lines; transitive deps can still silently overwrite LayerStyle's
 # opencv-contrib-python build regardless of filtering. Reinstall contrib as
