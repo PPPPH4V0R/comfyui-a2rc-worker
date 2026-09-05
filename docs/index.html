@@ -158,9 +158,14 @@ function renderWorkflowUI() {
     preview.className = 'preview';
 
     drop.onclick = () => fileInput.click();
-    fileInput.onchange = () => {
+    fileInput.onchange = async () => {
       if (!fileInput.files.length) return;
-      const f = fileInput.files[0];
+      let f = fileInput.files[0];
+      try {
+        f = await resizeImageFile(f);
+      } catch (e) {
+        // fall back to the original file if resizing fails for any reason
+      }
       uploadedFiles[i] = f;
       preview.src = URL.createObjectURL(f);
       preview.style.display = 'block';
@@ -260,6 +265,34 @@ selectEl.value = 'qwen_edit';
 renderWorkflowUI();
 
 document.getElementById('randomSeed').onclick = () => { seedEl.value = randomSeed(); };
+
+// Runpod's /run endpoint rejects request bodies over 10MiB, and a phone
+// photo (5-10MB) blows past that once base64 adds ~33% overhead. Downscale
+// and re-encode as JPEG client-side before upload so this never happens --
+// none of these workflows need more than ~2048px on the long edge anyway.
+function resizeImageFile(file, maxDim = 2048, quality = 0.9) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let { width, height } = img;
+      if (width <= maxDim && height <= maxDim && file.size <= 4 * 1024 * 1024) {
+        resolve(file); // already small enough, skip re-encoding
+        return;
+      }
+      const scale = Math.min(1, maxDim / Math.max(width, height));
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('canvas export failed')), 'image/jpeg', quality);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
