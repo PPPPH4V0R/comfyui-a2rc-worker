@@ -59,42 +59,43 @@ RUN git clone --depth 1 https://github.com/chflame163/ComfyUI_LayerStyle.git \
     && grep -v -i '^torch' custom_nodes/ComfyUI_LayerStyle/requirements.txt > /tmp/layerstyle-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/layerstyle-reqs.txt
 
-# Custom nodes for the Krea2 workflows (all installs explicitly target
-# /opt/venv per the fix above -- an unqualified `uv pip install` silently
-# lands somewhere ComfyUI's actual runtime process never sees).
+# Custom nodes (all installs explicitly target /opt/venv per the fix above --
+# an unqualified `uv pip install` silently lands somewhere ComfyUI's actual
+# runtime process never sees).
+#
+# The 5 packs previously installed here for the first Krea2 batch
+# (ComfyUI_essentials, ComfyUI-KJNodes, ComfyUI_UltimateSDUpscale,
+# rgthree-comfy, comfyui-krea2edit) were removed: none of their node types
+# are used by the workflows still deployed after that batch was retired in
+# favor of the single "Krea2 Ostris Edit + SeedVR2 + Z-Image" pipeline below.
 
-# GetImageSize+, SimpleMathDual+
-# Its requirements.txt pulls "rembg"/"transparent-background", which drag in
-# plain opencv-python-headless -- installing that AFTER LayerStyle's
-# opencv-contrib-python replaces cv2 with a build missing ximgproc (breaks
-# LayerStyle's guidedFilter-based functions). Filter it out; LayerStyle
-# already provides a full-featured cv2 for everyone to share.
-RUN git clone --depth 1 https://github.com/cubiq/ComfyUI_essentials.git \
-      custom_nodes/ComfyUI_essentials \
-    && grep -v -i '^opencv' custom_nodes/ComfyUI_essentials/requirements.txt > /tmp/essentials-reqs.txt \
-    && uv pip install --python /opt/venv/bin/python -r /tmp/essentials-reqs.txt
+# Krea2OstrisEditModelPatch, TextEncodeKrea2OstrisEdit -- no extra deps
+RUN git clone --depth 1 https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git \
+      custom_nodes/ComfyUI-Krea2-Ostris-Edit
 
-# ColorMatchV2, DrawMaskOnImage -- same opencv-clobbering issue as above.
-RUN git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git \
-      custom_nodes/ComfyUI-KJNodes \
-    && grep -v -i '^opencv' custom_nodes/ComfyUI-KJNodes/requirements.txt > /tmp/kjnodes-reqs.txt \
-    && uv pip install --python /opt/venv/bin/python -r /tmp/kjnodes-reqs.txt
+# easy loraStack, easy loraStackApply, easy cleanGpuUsed (ComfyUI-Easy-Use)
+RUN git clone --depth 1 https://github.com/yolain/ComfyUI-Easy-Use.git \
+      custom_nodes/ComfyUI-Easy-Use \
+    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI-Easy-Use/requirements.txt
 
-# UltimateSDUpscale -- the actual upscale logic lives in a git submodule
-RUN git clone --recurse-submodules --depth 1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git \
-      custom_nodes/ComfyUI_UltimateSDUpscale
+# JjkText -- no requirements.txt, pure Python
+RUN git clone --depth 1 https://github.com/jjkramhoeft/ComfyUI-Jjk-Nodes.git \
+      custom_nodes/ComfyUI-Jjk-Nodes
 
-# Seed (rgthree), Label (rgthree) -- no requirements.txt, pure Python
-RUN git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git \
-      custom_nodes/rgthree-comfy
+# FlowMatchEulerDiscreteScheduler (Custom) -- no extra deps
+RUN git clone --depth 1 https://github.com/erosDiffusion/ComfyUI-EulerDiscreteScheduler.git \
+      custom_nodes/ComfyUI-EulerDiscreteScheduler
 
-# Krea2EditGroundedEncode, Krea2EditModelPatch -- single-file node, no extra deps
-RUN git clone --depth 1 https://github.com/lbouaraba/comfyui-krea2edit.git \
-      custom_nodes/comfyui-krea2edit
+# Image Filter Adjustments -- only this one node out of WAS Node Suite's ~210
+# is used, but the class name is registered by the whole pack. Same
+# opencv-clobbering risk as the previous batch's packs; filter it out.
+RUN git clone --depth 1 https://github.com/WASasquatch/was-node-suite-comfyui.git \
+      custom_nodes/was-node-suite-comfyui \
+    && grep -v -i '^opencv' custom_nodes/was-node-suite-comfyui/requirements.txt > /tmp/was-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/was-reqs.txt
 
-# The opencv-exclusion filters above only catch requirements.txt TOP-LEVEL
-# lines; transitive deps (e.g. essentials' "rembg" pulls in plain
-# opencv-python/-headless on its own) still silently overwrite LayerStyle's
+# The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
+# lines; transitive deps can still silently overwrite LayerStyle's
 # opencv-contrib-python build regardless of filtering. Reinstall contrib as
 # the final, unconditional word after every other node pack's deps have
 # landed, so it's never the one left overwritten.
