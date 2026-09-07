@@ -90,6 +90,30 @@ RUN git clone --depth 1 https://github.com/facok/comfyui-krea2-controlnet.git \
 # only exercises Impact-Pack's trivial "pick input{N}" switch node).
 COPY shim-nodes/impact_switch_shim custom_nodes/impact_switch_shim
 
+# Context (rgthree), Context Big (rgthree), Power Lora Loader (rgthree),
+# SetNode/GetNode -- the AIO Yuri workflow's "bus" pattern and Set/Get
+# wiring depend on this pack extensively; live-diagnosed missing:
+# "Node '采样器 context' not found ... class_type: Context (rgthree)".
+# No requirements.txt (pure Python).
+RUN git clone --depth 1 https://github.com/rgthree/rgthree-comfy.git \
+      custom_nodes/rgthree-comfy
+
+# Switch any [Crystools] -- the AIO Yuri workflow's mode/ControlNet toggles
+# route through this. Filter torch (same clobbering risk as every other
+# pack here).
+RUN git clone --depth 1 https://github.com/crystian/ComfyUI-Crystools.git \
+      custom_nodes/ComfyUI-Crystools \
+    && grep -v -i '^torch' custom_nodes/ComfyUI-Crystools/requirements.txt > /tmp/crystools-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/crystools-reqs.txt
+
+# Int, String -- routable primitive nodes, no extra deps
+RUN git clone --depth 1 https://github.com/drustan-hawk/primitive-types.git \
+      custom_nodes/primitive-types
+
+# BooleanBasic -- no requirements.txt (404 on the repo)
+RUN git clone --depth 1 https://github.com/gseth/ControlAltAI-Nodes.git \
+      custom_nodes/ControlAltAI-Nodes
+
 # Krea2OstrisEditModelPatch, TextEncodeKrea2OstrisEdit -- no extra deps
 RUN git clone --depth 1 https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git \
       custom_nodes/ComfyUI-Krea2-Ostris-Edit
