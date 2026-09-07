@@ -62,12 +62,33 @@ RUN git clone --depth 1 https://github.com/chflame163/ComfyUI_LayerStyle.git \
 # Custom nodes (all installs explicitly target /opt/venv per the fix above --
 # an unqualified `uv pip install` silently lands somewhere ComfyUI's actual
 # runtime process never sees).
-#
-# The 5 packs previously installed here for the first Krea2 batch
-# (ComfyUI_essentials, ComfyUI-KJNodes, ComfyUI_UltimateSDUpscale,
-# rgthree-comfy, comfyui-krea2edit) were removed: none of their node types
-# are used by the workflows still deployed after that batch was retired in
-# favor of the single "Krea2 Ostris Edit + SeedVR2 + Z-Image" pipeline below.
+
+# Krea2EditGroundedEncode, Krea2EditModelPatch -- single-file node, no extra
+# deps. Removed earlier this round of changes, re-added because the new "AIO
+# Yuri" workflow's Mode-1 TE path uses this (older lbouaraba) implementation
+# side by side with the newer ostris one below -- both are live in the same
+# flattened graph (a Switch node picks between them at runtime).
+RUN git clone --depth 1 https://github.com/lbouaraba/comfyui-krea2edit.git \
+      custom_nodes/comfyui-krea2edit
+
+# PathchSageAttentionKJ (sic -- that's the pack's real, typo'd class name) --
+# same opencv-clobbering risk as other batches; filter it out.
+RUN git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git \
+      custom_nodes/ComfyUI-KJNodes \
+    && grep -v -i '^opencv' custom_nodes/ComfyUI-KJNodes/requirements.txt > /tmp/kjnodes-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/kjnodes-reqs.txt
+
+# Krea2ControlApply, Krea2ControlImageEncode, Krea2ControlLoRALoader -- no
+# requirements.txt (404 on the repo)
+RUN git clone --depth 1 https://github.com/facok/comfyui-krea2-controlnet.git \
+      custom_nodes/comfyui-krea2-controlnet
+
+# ImpactSwitch -- a ~15-line local shim (see shim-nodes/impact_switch_shim)
+# reimplementing just this one node's behavior, instead of the full
+# ComfyUI-Impact-Pack (which drags in segment-anything, scikit-image,
+# transformers, and a git-built sam2 -- all unused; the AIO Yuri workflow
+# only exercises Impact-Pack's trivial "pick input{N}" switch node).
+COPY shim-nodes/impact_switch_shim custom_nodes/impact_switch_shim
 
 # Krea2OstrisEditModelPatch, TextEncodeKrea2OstrisEdit -- no extra deps
 RUN git clone --depth 1 https://github.com/ostris/ComfyUI-Krea2-Ostris-Edit.git \
