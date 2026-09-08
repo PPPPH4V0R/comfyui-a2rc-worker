@@ -44,17 +44,114 @@
 
 <div class="row" id="imageSlots"></div>
 
-<div class="row">
+<div class="row" id="promptRow">
   <label>提示词</label>
   <textarea id="prompt"></textarea>
 </div>
 
-<div class="row">
+<div class="row" id="seedRow">
   <label>随机种子</label>
   <div class="seed-row">
     <input type="number" id="seed">
     <button type="button" id="randomSeed">🎲 随机</button>
   </div>
+</div>
+
+<div id="yuriTool" style="display:none">
+  <div class="row imageSlot"><label>REF 图 1（必需，主体参考）</label>
+    <div class="drop" id="yuriDrop1">点击选择图片</div>
+    <input type="file" id="yuriFile1" accept="image/*" style="display:none">
+    <img class="preview" id="yuriPreview1">
+  </div>
+  <div class="row imageSlot"><label>REF 图 2（可选，不传则复用图 1）</label>
+    <div class="drop" id="yuriDrop2">点击选择图片</div>
+    <input type="file" id="yuriFile2" accept="image/*" style="display:none">
+    <img class="preview" id="yuriPreview2">
+  </div>
+  <div class="row imageSlot"><label>底图 / 图生图图片（可选，不传则复用图 1）</label>
+    <div class="drop" id="yuriDrop3">点击选择图片</div>
+    <input type="file" id="yuriFile3" accept="image/*" style="display:none">
+    <img class="preview" id="yuriPreview3">
+  </div>
+
+  <div class="row">
+    <label>提示词</label>
+    <textarea id="yuriPrompt"></textarea>
+  </div>
+  <div class="row">
+    <label>负面提示词（仅 CFG&gt;1 时生效，默认 CFG=1.1）</label>
+    <textarea id="yuriNegPrompt"></textarea>
+  </div>
+
+  <div class="row">
+    <label><input type="checkbox" id="yuriIdentityEdit" checked style="width:auto;vertical-align:middle;margin-right:6px;">Identity Edit（编辑模式：身份保留换脸/换装/替换，关闭则为纯文生图/图生图）</label>
+  </div>
+
+  <div class="row">
+    <label>Latent 模式</label>
+    <select id="yuriLatentMode">
+      <option value="1">1 - 局部重绘（inpaint，效果一般）</option>
+      <option value="2">2 - 图生图</option>
+      <option value="3" selected>3 - 空白 Latent（按比例+像素量）</option>
+      <option value="4">4 - 空白 Latent（自定义宽高）</option>
+    </select>
+  </div>
+  <div class="row" id="yuriMode3Fields">
+    <label>画面比例</label>
+    <select id="yuriAspectRatio">
+      <option>1:1 (Square)</option>
+      <option>2:3 (Portrait Photo)</option>
+      <option>3:2 (Photo)</option>
+      <option>3:4 (Portrait Standard)</option>
+      <option>4:3 (Standard)</option>
+      <option>9:16 (Portrait Widescreen)</option>
+      <option>16:9 (Widescreen)</option>
+      <option>21:9 (Ultrawide)</option>
+    </select>
+    <label style="margin-top:10px">Megapixels</label>
+    <input type="number" id="yuriMegapixels" value="1" step="0.1" min="0.1" max="16">
+  </div>
+  <div class="row" id="yuriMode4Fields" style="display:none">
+    <label>宽</label>
+    <input type="number" id="yuriWidth" value="1024" step="8">
+    <label style="margin-top:10px">高</label>
+    <input type="number" id="yuriHeight" value="1024" step="8">
+  </div>
+
+  <details class="row">
+    <summary style="cursor:pointer;font-weight:600">ControlNet（可选，默认全部关闭）</summary>
+    <div class="row imageSlot" style="margin-top:12px"><label>CN 控制图片（启用任意 CN 时需要，不传则复用图 1）</label>
+      <div class="drop" id="yuriDropCn">点击选择图片</div>
+      <input type="file" id="yuriFileCn" accept="image/*" style="display:none">
+      <img class="preview" id="yuriPreviewCn">
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="yuriCnDepth" style="width:auto;vertical-align:middle;margin-right:6px;">Depth（深度）</label>
+      强度 <input type="number" id="yuriCnDepthStrength" value="1" step="0.1" min="0" max="2" style="width:80px;display:inline-block">
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="yuriCnPose" style="width:auto;vertical-align:middle;margin-right:6px;">Openpose（姿态）</label>
+      强度 <input type="number" id="yuriCnPoseStrength" value="1" step="0.1" min="0" max="2" style="width:80px;display:inline-block">
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="yuriCnAnything" style="width:auto;vertical-align:middle;margin-right:6px;">Anything-like（色块构图参考）</label>
+      强度 <input type="number" id="yuriCnAnythingStrength" value="1" step="0.1" min="0" max="2" style="width:80px;display:inline-block">
+    </div>
+    <p class="hint">同时开启 Openpose 和其他 CN 类型时，Openpose 与 Identity Edit 存在互斥关系（原工作流备注），建议一次只开一种。</p>
+  </details>
+
+  <div class="row">
+    <label>随机种子</label>
+    <div class="seed-row">
+      <input type="number" id="yuriSeed">
+      <button type="button" id="yuriRandomSeed">🎲 随机</button>
+    </div>
+  </div>
+
+  <details class="row">
+    <summary style="cursor:pointer;font-weight:600">使用说明（原工作流作者备注）</summary>
+    <pre id="yuriNotes" style="white-space:pre-wrap;font-size:.82rem;line-height:1.5;background:rgba(128,128,128,.1);padding:10px;border-radius:6px;margin-top:8px"></pre>
+  </details>
 </div>
 
 <div class="row">
@@ -72,7 +169,7 @@ const API_BASE = "https://a2rc-proxy.368014021.workers.dev";
 // ---- API-format workflow templates, one per selectable pipeline. Node ids
 // are exactly what a real ComfyUI "export API" would produce; each entry's
 // apply() writes the user's prompt/seed/image(s) into the right node. ----
-const TEMPLATES = {"qwen_edit": {"3": {"inputs": {"seed": 873783274557871, "steps": 4, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["75", 0], "positive": ["325", 0], "negative": ["326", 0], "latent_image": ["88", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "8": {"inputs": {"samples": ["3", 0], "vae": ["39", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "37": {"inputs": {"unet_name": "qwen_image_edit_2511_bf16.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "38": {"inputs": {"clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "39": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "66": {"inputs": {"shift": 3, "model": ["297", 0]}, "class_type": "ModelSamplingAuraFlow", "_meta": {"title": "ModelSamplingAuraFlow"}}, "75": {"inputs": {"strength": 1, "pre_cfg": false, "model": ["66", 0]}, "class_type": "CFGNorm", "_meta": {"title": "CFGNorm"}}, "77": {"inputs": {"prompt": "", "clip": ["38", 0], "vae": ["39", 0]}, "class_type": "TextEncodeQwenImageEdit", "_meta": {"title": "TextEncodeQwenImageEdit"}}, "78": {"inputs": {"image": "8956abd7fbf948d4f2f22494e2c7085642228d763806156e633e5689bcd013bb.webp"}, "class_type": "LoadImage", "_meta": {"title": "Load image"}}, "88": {"inputs": {"pixels": ["301", 0], "vae": ["39", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "110": {"inputs": {"prompt": "transform the image to realistic photograph,", "clip": ["38", 0], "vae": ["39", 0], "image1": ["301", 0]}, "class_type": "TextEncodeQwenImageEditPlus", "_meta": {"title": "TextEncodeQwenImageEditPlus"}}, "164": {"inputs": {"image": "114c2c9de75e01cb158ec833734dd7e9e3a19753a66240794d4313a06ea62ed4.png"}, "class_type": "LoadImage", "_meta": {"title": "Load Image"}}, "169": {"inputs": {"lora_name": "Qwen_Image_Edit_2511_Lightning_4步加速Lora_fp32.safetensors", "strength_model": 1.0000000000000002, "model": ["37", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}}, "189": {"inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}, "class_type": "SaveImage", "_meta": {"title": "Save Image"}}, "297": {"inputs": {"lora_name": "AnythingtoRealCharacters2511_20.safetensors", "strength_model": 1.0000000000000002, "model": ["169", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}}, "301": {"inputs": {"aspect_ratio": "original", "proportional_width": 1, "proportional_height": 1, "fit": "crop", "method": "nearest", "round_to_multiple": "None", "scale_to_side": "longest", "scale_to_length": 2024, "background_color": "#000000", "image": ["78", 0]}, "class_type": "LayerUtility: ImageScaleByAspectRatio V2", "_meta": {"title": "LayerUtility: ImageScaleByAspectRatio V2"}}, "325": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["110", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}, "326": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["77", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}}, "krea2_ostris": {"1": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "2": {"inputs": {"unet_name": "Krea2/krea2_turbo_int8_convrot.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "3": {"inputs": {"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "7": {"inputs": {"seed": 495014164938240, "steps": 10, "cfg": 1, "sampler_name": "euler", "scheduler": "beta57", "denoise": 1, "model": ["33", 0], "positive": ["21", 0], "negative": ["35", 0], "latent_image": ["40", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "8": {"inputs": {"samples": ["7", 0], "vae": ["1", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "21": {"inputs": {"reference_latents_method": "index", "conditioning": ["34", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}, "25": {"inputs": {"image": "example.png"}, "class_type": "LoadImage", "_meta": {"title": "Load Image"}}, "33": {"inputs": {"kv_cache": true, "model": ["98", 0]}, "class_type": "Krea2OstrisEditModelPatch", "_meta": {"title": "Krea 2 Ostris Edit Model Patch"}}, "34": {"inputs": {"prompt": ["100", 0], "clip": ["98", 1], "vae": ["1", 0], "image1": ["25", 0]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "Text Encode Krea 2 Ostris Edit"}}, "35": {"inputs": {"prompt": "", "clip": ["3", 0], "vae": ["1", 0], "image1": ["25", 0]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "Text Encode Krea 2 Ostris Edit"}}, "40": {"inputs": {"pixels": ["41", 0], "vae": ["1", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "41": {"inputs": {"image": ["25", 0]}, "class_type": "FluxKontextImageScale", "_meta": {"title": "FluxKontextImageScale"}}, "45": {"inputs": {"pixels": ["41", 0], "vae": ["1", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "53": {"inputs": {"resized_images": ["59", 0]}, "class_type": "SeedVR2Preprocess", "_meta": {"title": "Pre-Process SeedVR2 Input"}}, "54": {"inputs": {"model": ["55", 0], "vae_conditioning": ["56", 0]}, "class_type": "SeedVR2Conditioning", "_meta": {"title": "Apply SeedVR2 Conditioning"}}, "55": {"inputs": {"unet_name": "seedvr2_7b_int8_convrot.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "56": {"inputs": {"pixels": ["53", 0], "vae": ["104", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "57": {"inputs": {"seed": 668635926140665, "steps": 1, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["55", 0], "positive": ["54", 0], "negative": ["54", 1], "latent_image": ["56", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "58": {"inputs": {"samples": ["57", 0], "vae": ["104", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "59": {"inputs": {"resize_type": "scale longer dimension", "resize_type.longer_size": ["127", 0], "scale_method": "lanczos", "input": ["111", 0]}, "class_type": "ResizeImageMaskNode", "_meta": {"title": "Resize Image/Mask"}}, "60": {"inputs": {"color_correction_method": "lab", "images": ["58", 0], "original_resized_images": ["59", 0]}, "class_type": "SeedVR2PostProcessing", "_meta": {"title": "Post-Process SeedVR2 Output"}}, "70": {"inputs": {"samples": ["83", 0], "vae": ["82", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "71": {"inputs": {"pixels": ["112", 0], "vae": ["82", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "74": {"inputs": {"conditioning": ["79", 0]}, "class_type": "ConditioningZeroOut", "_meta": {"title": "Conditioning Zero Out"}}, "76": {"inputs": {"sampler_name": "euler"}, "class_type": "KSamplerSelect", "_meta": {"title": "KSamplerSelect"}}, "79": {"inputs": {"text": "OBbllai", "clip": ["84", 0]}, "class_type": "CLIPTextEncode", "_meta": {"title": "CLIP Text Encode (Prompt)"}}, "81": {"inputs": {"denoise": 0.4, "sigmas": ["87", 0]}, "class_type": "SplitSigmasDenoise", "_meta": {"title": "SplitSigmasDenoise"}}, "82": {"inputs": {"vae_name": "z_image_turbo-vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "83": {"inputs": {"add_noise": true, "noise_seed": 108613144718257, "cfg": 1, "model": ["86", 0], "positive": ["79", 0], "negative": ["74", 0], "sampler": ["76", 0], "sigmas": ["81", 1], "latent_image": ["71", 0]}, "class_type": "SamplerCustom", "_meta": {"title": "SamplerCustom"}}, "84": {"inputs": {"clip_name": "qwen_3_4b.safetensors", "type": "qwen_image", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "86": {"inputs": {"unet_name": "z_image_turbo_bf16.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "87": {"inputs": {"steps": 12, "start_at_step": 0, "end_at_step": 9999, "base_image_seq_len": 512, "base_shift": 1.0000000000000002, "invert_sigmas": "disable", "max_image_seq_len": 2048, "max_shift": 1.15, "num_train_timesteps": 1000, "shift": 3, "shift_terminal": 0, "stochastic_sampling": "disable", "time_shift_type": "exponential", "use_beta_sigmas": "disable", "use_dynamic_shifting": "enable", "use_exponential_sigmas": "disable", "use_karras_sigmas": "disable", "device": "auto"}, "class_type": "FlowMatchEulerDiscreteScheduler (Custom)", "_meta": {"title": "FlowMatch Euler Discrete Scheduler (Custom)"}}, "96": {"inputs": {"toggle": true, "mode": "simple", "num_loras": 2, "lora_1_name": "Krea2_anime2real_V3.safetensors", "lora_1_strength": 1, "lora_1_model_strength": 1, "lora_1_clip_strength": 1, "lora_2_name": "Krea2_TextFusion_Refusal_Reduction.safetensors", "lora_2_strength": 1, "lora_2_model_strength": 1, "lora_2_clip_strength": 1, "lora_3_name": "None", "lora_3_strength": 1, "lora_3_model_strength": 1, "lora_3_clip_strength": 1, "lora_4_name": "None", "lora_4_strength": 1, "lora_4_model_strength": 1, "lora_4_clip_strength": 1, "lora_5_name": "None", "lora_5_strength": 1, "lora_5_model_strength": 1, "lora_5_clip_strength": 1, "lora_6_name": "None", "lora_6_strength": 1, "lora_6_model_strength": 1, "lora_6_clip_strength": 1, "lora_7_name": "None", "lora_7_strength": 1, "lora_7_model_strength": 1, "lora_7_clip_strength": 1, "lora_8_name": "None", "lora_8_strength": 1, "lora_8_model_strength": 1, "lora_8_clip_strength": 1, "lora_9_name": "None", "lora_9_strength": 1, "lora_9_model_strength": 1, "lora_9_clip_strength": 1, "lora_10_name": "None", "lora_10_strength": 1, "lora_10_model_strength": 1, "lora_10_clip_strength": 1}, "class_type": "easy loraStack", "_meta": {"title": "EasyLoraStack"}}, "98": {"inputs": {"lora_stack": ["96", 0], "model": ["2", 0], "optional_clip": ["3", 0]}, "class_type": "easy loraStackApply", "_meta": {"title": "Easy Apply LoraStack"}}, "100": {"inputs": {"text": "transform the image to realistic photograph."}, "class_type": "JjkText", "_meta": {"title": "Text"}}, "103": {"inputs": {"lora_name": "OB拍立得人像摄影Instant camera portrait photography V5.0.safetensors", "strength_model": 0.5000000000000001, "strength_clip": 1, "model": ["86", 0], "clip": ["84", 0]}, "class_type": "LoraLoader", "_meta": {"title": "Load LoRA (Model and CLIP)"}}, "104": {"inputs": {"vae_name": "seedvr2_ema_vae_fp16.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE (SeedVR2)"}}, "111": {"inputs": {"anything": ["8", 0]}, "class_type": "easy cleanGpuUsed", "_meta": {"title": "Clean VRAM Used"}}, "112": {"inputs": {"anything": ["60", 0]}, "class_type": "easy cleanGpuUsed", "_meta": {"title": "Clean VRAM Used"}}, "113": {"inputs": {"filename_prefix": "ComfyUI", "images": ["115", 0]}, "class_type": "SaveImage", "_meta": {"title": "Save Image"}}, "115": {"inputs": {"brightness": 0.05000000000000001, "contrast": 1, "saturation": 0.8000000000000002, "sharpness": 1, "blur": 0, "gaussian_blur": 0, "edge_enhance": 0, "detail_enhance": "false", "image": ["70", 0]}, "class_type": "Image Filter Adjustments", "_meta": {"title": "Image Filter Adjustments"}}, "127": {"inputs": {"value": 1920}, "class_type": "PrimitiveInt", "_meta": {"title": "Int"}}}};
+const TEMPLATES = {"qwen_edit": {"3": {"inputs": {"seed": 873783274557871, "steps": 4, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["75", 0], "positive": ["325", 0], "negative": ["326", 0], "latent_image": ["88", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "8": {"inputs": {"samples": ["3", 0], "vae": ["39", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "37": {"inputs": {"unet_name": "qwen_image_edit_2511_bf16.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "38": {"inputs": {"clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "type": "qwen_image", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "39": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "66": {"inputs": {"shift": 3, "model": ["297", 0]}, "class_type": "ModelSamplingAuraFlow", "_meta": {"title": "ModelSamplingAuraFlow"}}, "75": {"inputs": {"strength": 1, "pre_cfg": false, "model": ["66", 0]}, "class_type": "CFGNorm", "_meta": {"title": "CFGNorm"}}, "77": {"inputs": {"prompt": "", "clip": ["38", 0], "vae": ["39", 0]}, "class_type": "TextEncodeQwenImageEdit", "_meta": {"title": "TextEncodeQwenImageEdit"}}, "78": {"inputs": {"image": "8956abd7fbf948d4f2f22494e2c7085642228d763806156e633e5689bcd013bb.webp"}, "class_type": "LoadImage", "_meta": {"title": "Load image"}}, "88": {"inputs": {"pixels": ["301", 0], "vae": ["39", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "110": {"inputs": {"prompt": "transform the image to realistic photograph,", "clip": ["38", 0], "vae": ["39", 0], "image1": ["301", 0]}, "class_type": "TextEncodeQwenImageEditPlus", "_meta": {"title": "TextEncodeQwenImageEditPlus"}}, "164": {"inputs": {"image": "114c2c9de75e01cb158ec833734dd7e9e3a19753a66240794d4313a06ea62ed4.png"}, "class_type": "LoadImage", "_meta": {"title": "Load Image"}}, "169": {"inputs": {"lora_name": "Qwen_Image_Edit_2511_Lightning_4步加速Lora_fp32.safetensors", "strength_model": 1.0000000000000002, "model": ["37", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}}, "189": {"inputs": {"filename_prefix": "ComfyUI", "images": ["8", 0]}, "class_type": "SaveImage", "_meta": {"title": "Save Image"}}, "297": {"inputs": {"lora_name": "AnythingtoRealCharacters2511_20.safetensors", "strength_model": 1.0000000000000002, "model": ["169", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "Load LoRA"}}, "301": {"inputs": {"aspect_ratio": "original", "proportional_width": 1, "proportional_height": 1, "fit": "crop", "method": "nearest", "round_to_multiple": "None", "scale_to_side": "longest", "scale_to_length": 2024, "background_color": "#000000", "image": ["78", 0]}, "class_type": "LayerUtility: ImageScaleByAspectRatio V2", "_meta": {"title": "LayerUtility: ImageScaleByAspectRatio V2"}}, "325": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["110", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}, "326": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["77", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}}, "krea2_ostris": {"1": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "2": {"inputs": {"unet_name": "Krea2/krea2_turbo_int8_convrot.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "3": {"inputs": {"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "7": {"inputs": {"seed": 495014164938240, "steps": 10, "cfg": 1, "sampler_name": "euler", "scheduler": "beta57", "denoise": 1, "model": ["33", 0], "positive": ["21", 0], "negative": ["35", 0], "latent_image": ["40", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "8": {"inputs": {"samples": ["7", 0], "vae": ["1", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "21": {"inputs": {"reference_latents_method": "index", "conditioning": ["34", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "Edit Model Reference Method"}}, "25": {"inputs": {"image": "example.png"}, "class_type": "LoadImage", "_meta": {"title": "Load Image"}}, "33": {"inputs": {"kv_cache": true, "model": ["98", 0]}, "class_type": "Krea2OstrisEditModelPatch", "_meta": {"title": "Krea 2 Ostris Edit Model Patch"}}, "34": {"inputs": {"prompt": ["100", 0], "clip": ["98", 1], "vae": ["1", 0], "image1": ["25", 0]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "Text Encode Krea 2 Ostris Edit"}}, "35": {"inputs": {"prompt": "", "clip": ["3", 0], "vae": ["1", 0], "image1": ["25", 0]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "Text Encode Krea 2 Ostris Edit"}}, "40": {"inputs": {"pixels": ["41", 0], "vae": ["1", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "41": {"inputs": {"image": ["25", 0]}, "class_type": "FluxKontextImageScale", "_meta": {"title": "FluxKontextImageScale"}}, "45": {"inputs": {"pixels": ["41", 0], "vae": ["1", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "53": {"inputs": {"resized_images": ["59", 0]}, "class_type": "SeedVR2Preprocess", "_meta": {"title": "Pre-Process SeedVR2 Input"}}, "54": {"inputs": {"model": ["55", 0], "vae_conditioning": ["56", 0]}, "class_type": "SeedVR2Conditioning", "_meta": {"title": "Apply SeedVR2 Conditioning"}}, "55": {"inputs": {"unet_name": "seedvr2_7b_int8_convrot.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "56": {"inputs": {"pixels": ["53", 0], "vae": ["104", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "57": {"inputs": {"seed": 668635926140665, "steps": 1, "cfg": 1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["55", 0], "positive": ["54", 0], "negative": ["54", 1], "latent_image": ["56", 0]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}, "58": {"inputs": {"samples": ["57", 0], "vae": ["104", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "59": {"inputs": {"resize_type": "scale longer dimension", "resize_type.longer_size": ["127", 0], "scale_method": "lanczos", "input": ["111", 0]}, "class_type": "ResizeImageMaskNode", "_meta": {"title": "Resize Image/Mask"}}, "60": {"inputs": {"color_correction_method": "lab", "images": ["58", 0], "original_resized_images": ["59", 0]}, "class_type": "SeedVR2PostProcessing", "_meta": {"title": "Post-Process SeedVR2 Output"}}, "70": {"inputs": {"samples": ["83", 0], "vae": ["82", 0]}, "class_type": "VAEDecode", "_meta": {"title": "VAE Decode"}}, "71": {"inputs": {"pixels": ["112", 0], "vae": ["82", 0]}, "class_type": "VAEEncode", "_meta": {"title": "VAE Encode"}}, "74": {"inputs": {"conditioning": ["79", 0]}, "class_type": "ConditioningZeroOut", "_meta": {"title": "Conditioning Zero Out"}}, "76": {"inputs": {"sampler_name": "euler"}, "class_type": "KSamplerSelect", "_meta": {"title": "KSamplerSelect"}}, "79": {"inputs": {"text": "OBbllai", "clip": ["84", 0]}, "class_type": "CLIPTextEncode", "_meta": {"title": "CLIP Text Encode (Prompt)"}}, "81": {"inputs": {"denoise": 0.4, "sigmas": ["87", 0]}, "class_type": "SplitSigmasDenoise", "_meta": {"title": "SplitSigmasDenoise"}}, "82": {"inputs": {"vae_name": "z_image_turbo-vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE"}}, "83": {"inputs": {"add_noise": true, "noise_seed": 108613144718257, "cfg": 1, "model": ["86", 0], "positive": ["79", 0], "negative": ["74", 0], "sampler": ["76", 0], "sigmas": ["81", 1], "latent_image": ["71", 0]}, "class_type": "SamplerCustom", "_meta": {"title": "SamplerCustom"}}, "84": {"inputs": {"clip_name": "qwen_3_4b.safetensors", "type": "qwen_image", "device": "default"}, "class_type": "CLIPLoader", "_meta": {"title": "Load CLIP"}}, "86": {"inputs": {"unet_name": "z_image_turbo_bf16.safetensors", "weight_dtype": "default"}, "class_type": "UNETLoader", "_meta": {"title": "Load Diffusion Model"}}, "87": {"inputs": {"steps": 12, "start_at_step": 0, "end_at_step": 9999, "base_image_seq_len": 512, "base_shift": 1.0000000000000002, "invert_sigmas": "disable", "max_image_seq_len": 2048, "max_shift": 1.15, "num_train_timesteps": 1000, "shift": 3, "shift_terminal": 0, "stochastic_sampling": "disable", "time_shift_type": "exponential", "use_beta_sigmas": "disable", "use_dynamic_shifting": "enable", "use_exponential_sigmas": "disable", "use_karras_sigmas": "disable", "device": "auto"}, "class_type": "FlowMatchEulerDiscreteScheduler (Custom)", "_meta": {"title": "FlowMatch Euler Discrete Scheduler (Custom)"}}, "96": {"inputs": {"toggle": true, "mode": "simple", "num_loras": 2, "lora_1_name": "Krea2_anime2real_V3.safetensors", "lora_1_strength": 1, "lora_1_model_strength": 1, "lora_1_clip_strength": 1, "lora_2_name": "Krea2_TextFusion_Refusal_Reduction.safetensors", "lora_2_strength": 1, "lora_2_model_strength": 1, "lora_2_clip_strength": 1, "lora_3_name": "None", "lora_3_strength": 1, "lora_3_model_strength": 1, "lora_3_clip_strength": 1, "lora_4_name": "None", "lora_4_strength": 1, "lora_4_model_strength": 1, "lora_4_clip_strength": 1, "lora_5_name": "None", "lora_5_strength": 1, "lora_5_model_strength": 1, "lora_5_clip_strength": 1, "lora_6_name": "None", "lora_6_strength": 1, "lora_6_model_strength": 1, "lora_6_clip_strength": 1, "lora_7_name": "None", "lora_7_strength": 1, "lora_7_model_strength": 1, "lora_7_clip_strength": 1, "lora_8_name": "None", "lora_8_strength": 1, "lora_8_model_strength": 1, "lora_8_clip_strength": 1, "lora_9_name": "None", "lora_9_strength": 1, "lora_9_model_strength": 1, "lora_9_clip_strength": 1, "lora_10_name": "None", "lora_10_strength": 1, "lora_10_model_strength": 1, "lora_10_clip_strength": 1}, "class_type": "easy loraStack", "_meta": {"title": "EasyLoraStack"}}, "98": {"inputs": {"lora_stack": ["96", 0], "model": ["2", 0], "optional_clip": ["3", 0]}, "class_type": "easy loraStackApply", "_meta": {"title": "Easy Apply LoraStack"}}, "100": {"inputs": {"text": "transform the image to realistic photograph."}, "class_type": "JjkText", "_meta": {"title": "Text"}}, "103": {"inputs": {"lora_name": "OB拍立得人像摄影Instant camera portrait photography V5.0.safetensors", "strength_model": 0.5000000000000001, "strength_clip": 1, "model": ["86", 0], "clip": ["84", 0]}, "class_type": "LoraLoader", "_meta": {"title": "Load LoRA (Model and CLIP)"}}, "104": {"inputs": {"vae_name": "seedvr2_ema_vae_fp16.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "Load VAE (SeedVR2)"}}, "111": {"inputs": {"anything": ["8", 0]}, "class_type": "easy cleanGpuUsed", "_meta": {"title": "Clean VRAM Used"}}, "112": {"inputs": {"anything": ["60", 0]}, "class_type": "easy cleanGpuUsed", "_meta": {"title": "Clean VRAM Used"}}, "113": {"inputs": {"filename_prefix": "ComfyUI", "images": ["115", 0]}, "class_type": "SaveImage", "_meta": {"title": "Save Image"}}, "115": {"inputs": {"brightness": 0.05000000000000001, "contrast": 1, "saturation": 0.8000000000000002, "sharpness": 1, "blur": 0, "gaussian_blur": 0, "edge_enhance": 0, "detail_enhance": "false", "image": ["70", 0]}, "class_type": "Image Filter Adjustments", "_meta": {"title": "Image Filter Adjustments"}}, "127": {"inputs": {"value": 1920}, "class_type": "PrimitiveInt", "_meta": {"title": "Int"}}}, "krea2_aio_yuri": {"29": {"inputs": {"filename_prefix": "%date:yyyyMMdd% Test krea2 ", "images": ["54", 0]}, "class_type": "SaveImage", "_meta": {"title": "生图保存结果"}}, "54": {"inputs": {"samples": ["53", 0], "vae": ["1126", 3]}, "class_type": "VAEDecode", "_meta": {"title": "VAEDecode"}}, "1126": {"inputs": {"base_ctx": ["1203/1434", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1434": {"inputs": {"on_true": ["1203/1433/1431", 0], "on_false": ["1203/1400", 0], "boolean": ["1203/1474", 0]}, "class_type": "Switch any [Crystools]", "_meta": {"title": "Control net 3"}}, "1203/1474": {"inputs": {"boolean": false}, "class_type": "BooleanBasic", "_meta": {"title": "BooleanBasic"}}, "1203/1400": {"inputs": {"on_true": ["1203/1422/1417", 0], "on_false": ["1203/1399", 0], "boolean": ["1203/1472", 0]}, "class_type": "Switch any [Crystools]", "_meta": {"title": "Control net 2"}}, "1203/1472": {"inputs": {"boolean": false}, "class_type": "BooleanBasic", "_meta": {"title": "BooleanBasic"}}, "1203/1399": {"inputs": {"on_true": ["1203/1401/1157", 0], "on_false": ["1203/1403", 0], "boolean": ["1203/1473", 0]}, "class_type": "Switch any [Crystools]", "_meta": {"title": "Control net 1"}}, "1203/1473": {"inputs": {"boolean": false}, "class_type": "BooleanBasic", "_meta": {"title": "BooleanBasic"}}, "1203/1403": {"inputs": {"base_ctx": ["1208/1351", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "RAW Context"}}, "1208/1351": {"inputs": {"select": ["1208/1468", 0], "sel_mode": false, "input1": ["1208/1180/1144", 0], "input2": ["1208/1170/1120", 0], "input3": ["1208/1494/1491", 0]}, "class_type": "ImpactSwitch", "_meta": {"title": "ImpactSwitch"}}, "1208/1494/1491": {"inputs": {"base_ctx": ["1208/1494/1493", 0], "model": ["1208/1494/1492", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "非edit context"}}, "1208/1494/1492": {"inputs": {"sage_attention": "disabled", "allow_compile": false, "model": ["1208/1494/1493", 1]}, "class_type": "PathchSageAttentionKJ", "_meta": {"title": "PathchSageAttentionKJ"}}, "1208/1494/1493": {"inputs": {"base_ctx": ["1198/1182", 0], "latent": ["1197/1322", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1197/1322": {"inputs": {"select": 3, "sel_mode": false, "input1": ["1197/1191", 0], "input2": ["1197/1190", 0], "input3": ["1197/1193", 0], "input4": ["1197/1196", 0]}, "class_type": "ImpactSwitch", "_meta": {"title": "ImpactSwitch"}}, "1197/1196": {"inputs": {"width": 1024, "height": 1024, "batch_size": 1}, "class_type": "EmptyLatentImage", "_meta": {"title": "④空Latent图像"}}, "1197/1193": {"inputs": {"width": ["1197/123", 0], "height": ["1197/123", 1], "batch_size": 1}, "class_type": "EmptyLatentImage", "_meta": {"title": "③空Latent图像"}}, "1197/123": {"inputs": {"aspect_ratio": "1:1 (Square)", "megapixels": 0.9999999999999992, "multiple": 8}, "class_type": "ResolutionSelector", "_meta": {"title": "ResolutionSelector"}}, "1197/1190": {"inputs": {"pixels": ["1197/1192", 7], "vae": ["1197/1192", 3]}, "class_type": "VAEEncode", "_meta": {"title": "②VAE编码（图生图）"}}, "1197/1192": {"inputs": {"base_ctx": ["1198/1182", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1198/1182": {"inputs": {"base_ctx": ["1143/1122", 0], "images": ["97", 0], "text_pos_g": ["1178", 0], "text_pos_l": ["1179", 0], "text_neg_g": ["1176", 0], "text_neg_l": ["1177", 0], "mask": ["97", 1]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Base"}}, "97": {"inputs": {"image": "0.png"}, "class_type": "LoadImage", "_meta": {"title": "图生图图像"}}, "1177": {"inputs": {"String": ""}, "class_type": "String", "_meta": {"title": "Mode 2 NEG Prompt"}}, "1176": {"inputs": {"String": ""}, "class_type": "String", "_meta": {"title": "Mode 2 POS Prompt"}}, "1179": {"inputs": {"String": ""}, "class_type": "String", "_meta": {"title": "Mode 1 NEG Prompt"}}, "1178": {"inputs": {"String": ""}, "class_type": "String", "_meta": {"title": "Mode 1 POS Prompt"}}, "1143/1122": {"inputs": {"model": ["1143/1142", 0], "clip": ["1143/1140", 0], "vae": ["1143/1141", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "Context (rgthree)"}}, "1143/1141": {"inputs": {"vae_name": "qwen_image_vae.safetensors"}, "class_type": "VAELoader", "_meta": {"title": "VAELoader"}}, "1143/1140": {"inputs": {"clip_name": "qwen3vl_4b_fp8_scaled.safetensors", "type": "krea2", "device": "cpu"}, "class_type": "CLIPLoader", "_meta": {"title": "CLIPLoader"}}, "1143/1142": {"inputs": {"sage_attention": "disabled", "allow_compile": false, "model": ["1446", 0]}, "class_type": "PathchSageAttentionKJ", "_meta": {"title": "PathchSageAttentionKJ"}}, "1446": {"inputs": {"model": ["1517", 0]}, "class_type": "Power Lora Loader (rgthree)", "_meta": {"title": "Power Lora Loader (rgthree)"}}, "1517": {"inputs": {"model": ["1143/1139", 0]}, "class_type": "Power Lora Loader (rgthree)", "_meta": {"title": "Power Lora Loader (rgthree)"}}, "1143/1139": {"inputs": {"unet_name": "Krea/krea2TurboOfficialComfy_krea2TurboFp8.safetensors", "weight_dtype": "fp8_e4m3fn"}, "class_type": "UNETLoader", "_meta": {"title": "UNETLoader"}}, "1197/1191": {"inputs": {"grow_mask_by": 22, "pixels": ["1197/1192", 7], "vae": ["1197/1192", 3], "mask": ["1197/1192", 21]}, "class_type": "VAEEncodeForInpaint", "_meta": {"title": "①VAE编码（局部重绘）"}}, "1208/1170/1120": {"inputs": {"base_ctx": ["1208/1170/1488", 0], "model": ["1208/1170/1307", 0], "positive": ["1208/1170/84", 0], "negative": ["1208/1170/1503", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "edit context"}}, "1208/1170/1503": {"inputs": {"conditioning": ["1208/1170/84", 0]}, "class_type": "ConditioningZeroOut", "_meta": {"title": "ConditioningZeroOut"}}, "1208/1170/84": {"inputs": {"prompt": ["1208/1170/1488", 19], "grounding_px": 1024, "system_prompt": "", "clip": ["1208/1170/1360", 1], "image": ["1198/1199", 7], "image_b": ["1198/1200", 7]}, "class_type": "Krea2EditGroundedEncode", "_meta": {"title": "Krea2EditGroundedEncode"}}, "1208/1170/1488": {"inputs": {"base_ctx": ["1198/1182", 0], "latent": ["1197/1322", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1198/1200": {"inputs": {"latent": ["1303", 0], "images": ["1300", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "REF image 2"}}, "1300": {"inputs": {"resize_type": "scale dimensions", "resize_type.width": 1024, "resize_type.height": 1024, "resize_type.crop": "center", "scale_method": "area", "input": ["1172", 0]}, "class_type": "ResizeImageMaskNode", "_meta": {"title": "ResizeImageMaskNode"}}, "1172": {"inputs": {"image": "0.png"}, "class_type": "LoadImage", "_meta": {"title": "REF Image 2"}}, "1303": {"inputs": {"pixels": ["1300", 0], "vae": ["1304", 3]}, "class_type": "VAEEncode", "_meta": {"title": "VAEEncode"}}, "1304": {"inputs": {"base_ctx": ["1198/1182", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1198/1199": {"inputs": {"latent": ["1302", 0], "images": ["1301", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "REF image 1"}}, "1301": {"inputs": {"resize_type": "scale dimensions", "resize_type.width": 1024, "resize_type.height": 1024, "resize_type.crop": "center", "scale_method": "area", "input": ["1171", 0]}, "class_type": "ResizeImageMaskNode", "_meta": {"title": "ResizeImageMaskNode"}}, "1171": {"inputs": {"image": "0.png"}, "class_type": "LoadImage", "_meta": {"title": "REF Image 1"}}, "1302": {"inputs": {"pixels": ["1301", 0], "vae": ["1304", 3]}, "class_type": "VAEEncode", "_meta": {"title": "VAEEncode"}}, "1208/1170/1360": {"inputs": {"lora_name": "Krea2/krea2_identity_edit_v1_2.safetensors", "strength_model": 1, "strength_clip": 1, "model": ["1208/1170/1488", 1], "clip": ["1208/1170/1488", 2]}, "class_type": "LoraLoader", "_meta": {"title": "LoraLoader"}}, "1208/1170/1307": {"inputs": {"sage_attention": "disabled", "allow_compile": false, "model": ["1208/1170/79", 0]}, "class_type": "PathchSageAttentionKJ", "_meta": {"title": "PathchSageAttentionKJ"}}, "1208/1170/79": {"inputs": {"ref_boost": 1, "ref_boost_a": 1, "fit_mode": "fit", "model": ["1208/1170/1360", 0], "source_latent": ["1198/1199", 6], "source_latent_b": ["1198/1200", 6], "vae": ["1208/1170/1488", 3], "source_image": ["1198/1199", 7], "source_image_b": ["1198/1200", 7]}, "class_type": "Krea2EditModelPatch", "_meta": {"title": "Krea2EditModelPatch"}}, "1208/1468": {"inputs": {"on_true": ["1208/1469", 0], "on_false": ["1208/1395", 0], "boolean": ["1208/1476", 0]}, "class_type": "Switch any [Crystools]", "_meta": {"title": "Switch any [Crystools]"}}, "1208/1476": {"inputs": {"boolean": ["1203/1472", 0]}, "class_type": "BooleanBasic", "_meta": {"title": "BooleanBasic"}}, "1208/1395": {"inputs": {"on_true": ["1208/1397", 0], "on_false": ["1208/1396", 0], "boolean": ["1208/1404", 0]}, "class_type": "Switch any [Crystools]", "_meta": {"title": "Switch any [Crystools]"}}, "1208/1404": {"inputs": {"boolean": 1}, "class_type": "BooleanBasic", "_meta": {"title": "BooleanBasic"}}, "1208/1396": {"inputs": {"Number": "1"}, "class_type": "Int", "_meta": {"title": "1"}}, "1208/1397": {"inputs": {"Number": "2"}, "class_type": "Int", "_meta": {"title": "2"}}, "1208/1469": {"inputs": {"Number": "3"}, "class_type": "Int", "_meta": {"title": "3"}}, "1208/1180/1144": {"inputs": {"base_ctx": ["1208/1180/1487", 0], "model": ["1208/1180/1310", 0], "positive": ["1208/1180/1112", 0], "negative": ["1208/1180/1169", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "非edit context"}}, "1208/1180/1169": {"inputs": {"clip": ["1208/1180/1487", 2], "text": ["1208/1180/1487", 18]}, "class_type": "CLIPTextEncode", "_meta": {"title": "CLIPTextEncode"}}, "1208/1180/1487": {"inputs": {"base_ctx": ["1198/1182", 0], "latent": ["1197/1322", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1208/1180/1112": {"inputs": {"clip": ["1208/1180/1487", 2], "text": ["1208/1180/1487", 17]}, "class_type": "CLIPTextEncode", "_meta": {"title": "CLIPTextEncode"}}, "1208/1180/1310": {"inputs": {"sage_attention": "disabled", "allow_compile": false, "model": ["1208/1180/1487", 1]}, "class_type": "PathchSageAttentionKJ", "_meta": {"title": "PathchSageAttentionKJ"}}, "1203/1401/1157": {"inputs": {"base_ctx": ["1203/1401/1204", 0], "model": ["1203/1401/1155", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1401/1155": {"inputs": {"model": ["1203/1401/1151", 0], "control_latent": ["1203/1401/1162", 0]}, "class_type": "Krea2ControlApply", "_meta": {"title": "Krea2ControlApply"}}, "1203/1401/1162": {"inputs": {"resize": "keep_control_image_size", "upscale_method": "area", "crop": "center", "channel_mode": "rgb", "normalize": "per_image_minmax", "invert": false, "batch_mode": "independent_images", "control_image": ["1203/1401/1163", 0], "vae": ["1203/1401/1204", 3], "latent": ["1203/1401/1204", 6]}, "class_type": "Krea2ControlImageEncode", "_meta": {"title": "Krea2ControlImageEncode"}}, "1203/1401/1204": {"inputs": {"base_ctx": ["1203/1401/1160", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1401/1160": {"inputs": {"base_ctx": ["1203/1403", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1401/1163": {"inputs": {"images": ["1501", 0]}, "class_type": "PreviewImage", "_meta": {"title": "PreviewImage"}}, "1501": {"inputs": {"image": "0.png"}, "class_type": "LoadImage", "_meta": {"title": "CN image"}}, "1203/1401/1151": {"inputs": {"lora_name": "Krea2CN/depth-control-lora.safetensors", "strength": 1, "model": ["1203/1401/1160", 1]}, "class_type": "Krea2ControlLoRALoader", "_meta": {"title": "Krea2ControlLoRALoader"}}, "1203/1422/1417": {"inputs": {"base_ctx": ["1203/1422/1416", 0], "model": ["1203/1422/1411", 0], "positive": ["1203/1422/1408", 0], "negative": ["1203/1422/1409", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "Context (rgthree)"}}, "1203/1422/1409": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["1203/1422/1407", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "FluxKontextMultiReferenceLatentMethod"}}, "1203/1422/1407": {"inputs": {"clip": ["1203/1422/1416", 2], "vae": ["1203/1422/1416", 3], "image1": ["1203/1422/1412", 0], "prompt": ["1203/1422/1416", 18]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "TextEncodeKrea2OstrisEdit"}}, "1203/1422/1416": {"inputs": {"base_ctx": ["1203/1399", 0]}, "class_type": "Context Big (rgthree)", "_meta": {"title": "Context Big (rgthree)"}}, "1203/1422/1412": {"inputs": {"image": ["1501", 0]}, "class_type": "FluxKontextImageScale", "_meta": {"title": "FluxKontextImageScale"}}, "1203/1422/1408": {"inputs": {"reference_latents_method": "index_timestep_zero", "conditioning": ["1203/1422/1406", 0]}, "class_type": "FluxKontextMultiReferenceLatentMethod", "_meta": {"title": "FluxKontextMultiReferenceLatentMethod"}}, "1203/1422/1406": {"inputs": {"clip": ["1203/1422/1416", 2], "vae": ["1203/1422/1416", 3], "image1": ["1203/1422/1412", 0], "prompt": ["1203/1422/1416", 17]}, "class_type": "TextEncodeKrea2OstrisEdit", "_meta": {"title": "TextEncodeKrea2OstrisEdit"}}, "1203/1422/1411": {"inputs": {"lora_name": "Krea2CN/krea2_turbo_openpose_controlnet.safetensors", "strength_model": 1, "model": ["1203/1422/1410", 0]}, "class_type": "LoraLoaderModelOnly", "_meta": {"title": "LoraLoaderModelOnly"}}, "1203/1422/1410": {"inputs": {"kv_cache": true, "model": ["1203/1422/1416", 1]}, "class_type": "Krea2OstrisEditModelPatch", "_meta": {"title": "Krea2OstrisEditModelPatch"}}, "1203/1433/1431": {"inputs": {"base_ctx": ["1203/1433/1426", 0], "model": ["1203/1433/1429", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1433/1429": {"inputs": {"model": ["1203/1433/1424", 0], "control_latent": ["1203/1433/1428", 0]}, "class_type": "Krea2ControlApply", "_meta": {"title": "Krea2ControlApply"}}, "1203/1433/1428": {"inputs": {"resize": "keep_control_image_size", "upscale_method": "area", "crop": "center", "channel_mode": "rgb", "normalize": "per_image_minmax", "invert": false, "batch_mode": "independent_images", "control_image": ["1203/1433/1425", 0], "vae": ["1203/1433/1426", 3], "latent": ["1203/1433/1426", 6]}, "class_type": "Krea2ControlImageEncode", "_meta": {"title": "Krea2ControlImageEncode"}}, "1203/1433/1426": {"inputs": {"base_ctx": ["1203/1433/1423", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1433/1423": {"inputs": {"base_ctx": ["1203/1400", 0]}, "class_type": "Context (rgthree)", "_meta": {"title": "采样器 context"}}, "1203/1433/1425": {"inputs": {"images": ["1501", 0]}, "class_type": "PreviewImage", "_meta": {"title": "PreviewImage"}}, "1203/1433/1424": {"inputs": {"lora_name": "Krea2CN/krea2-anythng_step_007000.safetensors", "strength": 1, "model": ["1203/1433/1423", 1]}, "class_type": "Krea2ControlLoRALoader", "_meta": {"title": "Krea2ControlLoRALoader"}}, "53": {"inputs": {"seed": 207613178341769, "steps": 8, "cfg": 1.1, "sampler_name": "euler", "scheduler": "simple", "denoise": 1, "model": ["1126", 1], "positive": ["1126", 4], "negative": ["1126", 5], "latent_image": ["1126", 6]}, "class_type": "KSampler", "_meta": {"title": "KSampler"}}}};
 
 const WORKFLOWS = {
   qwen_edit: {
@@ -99,6 +196,10 @@ const WORKFLOWS = {
       wf["83"].inputs.noise_seed = seed;
     },
   },
+  krea2_aio_yuri: {
+    label: "Krea2 AIO（双参考图编辑 + 可选 ControlNet）",
+    custom: "yuri",
+  },
 };
 
 const selectEl = document.getElementById('workflowSelect');
@@ -119,21 +220,126 @@ for (const [id, wf] of Object.entries(WORKFLOWS)) {
 let uploadedFiles = []; // File objects, index-aligned with imageLabels
 let paintedBlob = null; // for the inpaint workflow's painted composite
 
+// krea2_aio_yuri state: File objects (or null -> falls back to ref1 at submit time)
+let yuriFiles = { ref1: null, ref2: null, base: null, cn: null };
+
+const YURI_NOTES = [
+  "【参数组合说明】",
+  "不同参数、模式组合可以开启不同绘图模式：",
+  "",
+  "---非编辑模式---",
+  "TE处关闭 Identity Edit 模式，并在 Group1 中输入 Prompt 和控制图像进行生图",
+  "1. 文生图 —— latent 模式选 3 或 4，并调节空 latent 大小；可启用 ControlNet",
+  "2. 图生图 —— 关闭 Identity Edit，latent 模式选 2；可启用 ControlNet",
+  "",
+  "---编辑模式---",
+  "TE处开启 Identity Edit 模式，在 Group1 中输入控制图像和图生图图像，在 Group2 中输入 Prompt 和参考图像进行生成。",
+  "1. 单图编辑 —— 参考图1 + prompt（图1中的角色在xxxx等），latent 建议设为空",
+  "2. 双参考图编辑 —— 参考图1、图2 + prompt（图1角色替换为图2的角色等），latent 建议设为空",
+  "3. 单参考文生图 —— 参考图1 + prompt/词条",
+  "4. 多参考文生图 —— 参考图1、图2 + prompt，组合两图元素",
+  "",
+  "【TE 参数设置介绍】",
+  "· REF Boost 决定对参考图的参考力度，推荐 4~8，过高可能过拟合、降低词条服从度（本页面固定为工作流保存时的默认值）",
+  "· Grounding Pixel 为参考图像编码大小，越高参考质量越好，但耗时增加",
+  "",
+  "【采样器 Note】",
+  "Krea2 Turbo：CFG 1；Step 8~10",
+  "Krea2 RAW：CFG 4~5；Step 20~30",
+  "",
+  "【Latent 模式介绍】",
+  "1 - 局部重绘（效果一般）",
+  "2 - 图生图",
+  "3 - 空 latent（按比例 + megapixels 调大小）",
+  "4 - 空 latent（手动指定宽高）",
+  "",
+  "【ControlNet 介绍】",
+  "1. CN1 - Depth：经典深度控制，用于全局控制深度。⚠ 使用 Identity Edit 会导致该 CN 失效",
+  "2. CN2 - Openpose：经典姿态控制，可单人/多人。⚠ 使用该 CN 会导致 Identity Edit 失效",
+  "3. CN3 - Anything like：参考色块构图生成，需要调节强度。⚠ 使用该 CN 会导致 Identity Edit 失效",
+  "",
+  "· CFG 大于 1 时，负面提示词才生效（默认 CFG=1.1）",
+].join("\n");
+
 function randomSeed() {
   return Math.floor(Math.random() * 1e15);
 }
 
 function updateSubmitEnabled() {
   const wf = WORKFLOWS[selectEl.value];
-  if (wf.paint) {
+  if (wf.custom === 'yuri') {
+    submitEl.disabled = !yuriFiles.ref1;
+  } else if (wf.paint) {
     submitEl.disabled = !paintedBlob;
   } else {
     submitEl.disabled = uploadedFiles.length < wf.images || uploadedFiles.slice(0, wf.images).some(f => !f);
   }
 }
 
+function renderYuriUI() {
+  document.getElementById('imageSlots').style.display = 'none';
+  document.getElementById('promptRow').style.display = 'none';
+  document.getElementById('seedRow').style.display = 'none';
+  document.getElementById('yuriTool').style.display = 'block';
+  resultEl.innerHTML = '';
+  statusEl.textContent = '';
+
+  yuriFiles = { ref1: null, ref2: null, base: null, cn: null };
+  document.getElementById('yuriPreview1').style.display = 'none';
+  document.getElementById('yuriPreview2').style.display = 'none';
+  document.getElementById('yuriPreview3').style.display = 'none';
+  document.getElementById('yuriPreviewCn').style.display = 'none';
+  document.getElementById('yuriPrompt').value = 'transform the image to realistic photograph.';
+  document.getElementById('yuriNegPrompt').value = '';
+  document.getElementById('yuriSeed').value = randomSeed();
+  document.getElementById('yuriNotes').textContent = YURI_NOTES;
+
+  const slotWire = (dropId, fileId, previewId, key) => {
+    const drop = document.getElementById(dropId);
+    const fileInput = document.getElementById(fileId);
+    const preview = document.getElementById(previewId);
+    drop.onclick = () => fileInput.click();
+    fileInput.onchange = async () => {
+      if (!fileInput.files.length) return;
+      let f = fileInput.files[0];
+      try { f = await resizeImageFile(f); } catch (e) {}
+      yuriFiles[key] = f;
+      preview.src = URL.createObjectURL(f);
+      preview.style.display = 'block';
+      updateSubmitEnabled();
+    };
+  };
+  slotWire('yuriDrop1', 'yuriFile1', 'yuriPreview1', 'ref1');
+  slotWire('yuriDrop2', 'yuriFile2', 'yuriPreview2', 'ref2');
+  slotWire('yuriDrop3', 'yuriFile3', 'yuriPreview3', 'base');
+  slotWire('yuriDropCn', 'yuriFileCn', 'yuriPreviewCn', 'cn');
+
+  document.getElementById('yuriRandomSeed').onclick = () => {
+    document.getElementById('yuriSeed').value = randomSeed();
+  };
+
+  const modeEl = document.getElementById('yuriLatentMode');
+  const mode3El = document.getElementById('yuriMode3Fields');
+  const mode4El = document.getElementById('yuriMode4Fields');
+  modeEl.onchange = () => {
+    mode3El.style.display = modeEl.value === '3' ? 'block' : 'none';
+    mode4El.style.display = modeEl.value === '4' ? 'block' : 'none';
+  };
+  modeEl.dispatchEvent(new Event('change'));
+
+  updateSubmitEnabled();
+}
+
 function renderWorkflowUI() {
   const wf = WORKFLOWS[selectEl.value];
+  document.getElementById('yuriTool').style.display = 'none';
+  document.getElementById('imageSlots').style.display = '';
+  document.getElementById('promptRow').style.display = '';
+  document.getElementById('seedRow').style.display = '';
+  if (wf.custom === 'yuri') {
+    renderYuriUI();
+    return;
+  }
   promptEl.value = wf.defaultPrompt || '';
   seedEl.value = randomSeed();
   uploadedFiles = new Array(wf.images).fill(null);
@@ -303,6 +509,59 @@ function fileToBase64(file) {
   });
 }
 
+async function buildYuriPayload() {
+  const workflow = JSON.parse(JSON.stringify(TEMPLATES['krea2_aio_yuri']));
+  const images = [];
+
+  // ref1 is required (enforced by updateSubmitEnabled); any slot left empty
+  // reuses ref1's file so the still-wired-but-toggled-off branches always
+  // have a real image to load.
+  const files = {
+    ref1: yuriFiles.ref1,
+    ref2: yuriFiles.ref2 || yuriFiles.ref1,
+    base: yuriFiles.base || yuriFiles.ref1,
+    cn: yuriFiles.cn || yuriFiles.ref1,
+  };
+  const names = { ref1: 'ref1.jpg', ref2: 'ref2.jpg', base: 'base.jpg', cn: 'cn.jpg' };
+  for (const key of ['ref1', 'ref2', 'base', 'cn']) {
+    const b64 = await fileToBase64(files[key]);
+    images.push({ name: names[key], image: b64 });
+  }
+
+  workflow['1171'].inputs.image = names.ref1;
+  workflow['1172'].inputs.image = names.ref2;
+  workflow['97'].inputs.image = names.base;
+  workflow['1501'].inputs.image = names.cn;
+
+  const prompt = document.getElementById('yuriPrompt').value;
+  const negPrompt = document.getElementById('yuriNegPrompt').value;
+  workflow['1178'].inputs.String = prompt;   // Mode 1 POS
+  workflow['1176'].inputs.String = prompt;   // Mode 2 POS
+  workflow['1179'].inputs.String = negPrompt; // Mode 1 NEG
+  workflow['1177'].inputs.String = negPrompt; // Mode 2 NEG
+
+  const seed = parseInt(document.getElementById('yuriSeed').value, 10) || randomSeed();
+  workflow['53'].inputs.seed = seed;
+
+  workflow['1208/1404'].inputs.boolean = document.getElementById('yuriIdentityEdit').checked ? 1 : 0;
+
+  const latentMode = parseInt(document.getElementById('yuriLatentMode').value, 10);
+  workflow['1197/1322'].inputs.select = latentMode;
+  workflow['1197/123'].inputs.aspect_ratio = document.getElementById('yuriAspectRatio').value;
+  workflow['1197/123'].inputs.megapixels = parseFloat(document.getElementById('yuriMegapixels').value) || 1;
+  workflow['1197/1196'].inputs.width = parseInt(document.getElementById('yuriWidth').value, 10) || 1024;
+  workflow['1197/1196'].inputs.height = parseInt(document.getElementById('yuriHeight').value, 10) || 1024;
+
+  workflow['1203/1474'].inputs.boolean = document.getElementById('yuriCnDepth').checked;
+  workflow['1203/1401/1151'].inputs.strength = parseFloat(document.getElementById('yuriCnDepthStrength').value) || 1;
+  workflow['1203/1472'].inputs.boolean = document.getElementById('yuriCnPose').checked;
+  workflow['1203/1422/1411'].inputs.strength_model = parseFloat(document.getElementById('yuriCnPoseStrength').value) || 1;
+  workflow['1203/1473'].inputs.boolean = document.getElementById('yuriCnAnything').checked;
+  workflow['1203/1433/1424'].inputs.strength = parseFloat(document.getElementById('yuriCnAnythingStrength').value) || 1;
+
+  return { workflow, images };
+}
+
 submitEl.onclick = async () => {
   const wfId = selectEl.value;
   const wfDef = WORKFLOWS[wfId];
@@ -310,35 +569,40 @@ submitEl.onclick = async () => {
   resultEl.innerHTML = '';
   statusEl.textContent = '编码图片中…';
 
-  let images = [];
-  let imageNames = [];
+  let workflow, images;
   try {
-    if (wfDef.paint) {
+    if (wfDef.custom === 'yuri') {
+      ({ workflow, images } = await buildYuriPayload());
+    } else if (wfDef.paint) {
       const b64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result.split(',')[1]);
         reader.onerror = reject;
         reader.readAsDataURL(paintedBlob);
       });
-      images.push({ name: 'input.png', image: b64 });
-      imageNames.push('input.png');
+      images = [{ name: 'input.png', image: b64 }];
+      const imageNames = ['input.png'];
+      workflow = JSON.parse(JSON.stringify(TEMPLATES[wfId]));
+      const seed = parseInt(seedEl.value, 10) || randomSeed();
+      wfDef.apply(workflow, { prompt: promptEl.value, seed, imageNames });
     } else {
+      images = [];
+      const imageNames = [];
       for (let i = 0; i < wfDef.images; i++) {
         const name = i === 0 ? 'input.png' : 'input_' + i + '.png';
         const b64 = await fileToBase64(uploadedFiles[i]);
         images.push({ name, image: b64 });
         imageNames.push(name);
       }
+      workflow = JSON.parse(JSON.stringify(TEMPLATES[wfId]));
+      const seed = parseInt(seedEl.value, 10) || randomSeed();
+      wfDef.apply(workflow, { prompt: promptEl.value, seed, imageNames });
     }
   } catch (e) {
     statusEl.innerHTML = '<span class="error">读取图片失败: ' + e.message + '</span>';
     submitEl.disabled = false;
     return;
   }
-
-  const workflow = JSON.parse(JSON.stringify(TEMPLATES[wfId]));
-  const seed = parseInt(seedEl.value, 10) || randomSeed();
-  wfDef.apply(workflow, { prompt: promptEl.value, seed, imageNames });
 
   const payload = { input: { workflow, images } };
   const headers = { "Content-Type": "application/json" };
