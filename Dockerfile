@@ -106,9 +106,16 @@ RUN git clone --depth 1 https://github.com/crystian/ComfyUI-Crystools.git \
     && grep -v -i '^torch' custom_nodes/ComfyUI-Crystools/requirements.txt > /tmp/crystools-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/crystools-reqs.txt
 
-# Int, String -- routable primitive nodes, no extra deps
-RUN git clone --depth 1 https://github.com/drustan-hawk/primitive-types.git \
-      custom_nodes/primitive-types
+# Int, String -- literal-value nodes, no extra deps. NOTE: drustan-hawk's
+# "primitive-types" pack was tried first but registers lowercase "int"/
+# "string" class_types, not a match; M1kep/ComfyLiterals registers exactly
+# "Int" -> IntLiteral (param name "Number") and "String" -> StringLiteral
+# (param name "String"), which is what this workflow's saved JSON actually
+# uses -- confirmed live via "Node 'Mode 2 POS Prompt' not found" followed
+# by matching IntLiteral's STRING-typed "Number" widget serialization
+# ("1"/"2"/"3" as literal strings, not ints) in the source workflow.
+RUN git clone --depth 1 https://github.com/M1kep/ComfyLiterals.git \
+      custom_nodes/ComfyLiterals
 
 # BooleanBasic -- no requirements.txt (404 on the repo)
 RUN git clone --depth 1 https://github.com/gseth/ControlAltAI-Nodes.git \
