@@ -621,17 +621,51 @@ submitEl.onclick = async () => {
   }
 
   statusEl.textContent = '排队/冷启动中，第一次调用可能要 1-2 分钟…';
+  let pollFailCount = 0;
+  let pollPaused = false;
+  let pollTimer = null;
+
+  // Mobile browsers throttle/suspend fetches and timers while the tab is
+  // backgrounded or the screen is locked -- that alone used to trip the
+  // "network fluctuation" message on nearly every lock/unlock. Pause polling
+  // while hidden and resume immediately (without alarming the user) when the
+  // page becomes visible again, instead of letting those blips count as
+  // real network failures.
+  const onVisibilityChange = () => {
+    if (document.hidden) {
+      pollPaused = true;
+      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    } else if (pollPaused) {
+      pollPaused = false;
+      poll();
+    }
+  };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+
   const poll = async () => {
+    if (document.hidden) { pollPaused = true; return; }
     let data;
     try {
-      const r = await fetch(API_BASE + "/status/" + jobId, { headers });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const r = await fetch(API_BASE + "/status/" + jobId, { headers, signal: controller.signal });
+      clearTimeout(timeoutId);
       data = await r.json();
+      pollFailCount = 0;
     } catch (e) {
-      statusEl.textContent = '网络波动，继续重试…';
-      setTimeout(poll, 4000);
+      pollFailCount++;
+      // A single blip is common (especially right after unlocking the
+      // phone) and usually self-corrects on the very next try -- only
+      // surface a message once it's actually persisted.
+      if (pollFailCount >= 2) {
+        statusEl.textContent = '网络波动，继续重试…（第 ' + pollFailCount + ' 次）';
+      }
+      const delay = Math.min(4000 + (pollFailCount - 1) * 2000, 15000);
+      pollTimer = setTimeout(poll, delay);
       return;
     }
     if (data.status === 'COMPLETED') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       const img = (data.output && data.output.images && data.output.images[0]);
       if (!img) {
         statusEl.innerHTML = '<span class="error">完成但没有返回图片</span>';
@@ -643,11 +677,12 @@ submitEl.onclick = async () => {
       resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.png">下载结果</a>';
       submitEl.disabled = false;
     } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       statusEl.innerHTML = '<span class="error">失败: ' + (data.error || data.status) + '</span>';
       submitEl.disabled = false;
     } else {
       statusEl.textContent = '状态: ' + data.status + ' …';
-      setTimeout(poll, 3000);
+      pollTimer = setTimeout(poll, 3000);
     }
   };
   poll();
