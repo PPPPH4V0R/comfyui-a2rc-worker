@@ -896,6 +896,13 @@ function buildCharSheetWorkflow(imageName, shotPrompt, negPrompt, seed) {
   workflow['97'].inputs.image = imageName;
   workflow['1501'].inputs.image = imageName;
 
+  // The saved workflow ships ref_boost=1; the original author's own notes
+  // (see YURI_NOTES below) recommend 4-8 for stronger adherence to the
+  // reference image -- 1 is why identity/detail were drifting off the
+  // source photo.
+  workflow['1208/1170/79'].inputs.ref_boost = 6;
+  workflow['1208/1170/79'].inputs.ref_boost_a = 6;
+
   const prompt = '图1中的角色，保持外貌、发型、服装特征不变，' + shotPrompt;
   workflow['1178'].inputs.String = prompt;
   workflow['1176'].inputs.String = prompt;
