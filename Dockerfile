@@ -177,6 +177,18 @@ RUN git clone --depth 1 https://github.com/chenpipi0807/ComfyUI-Index-TTS.git \
          > /tmp/indextts-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/indextts-reqs.txt
 
+# This node package resolves its model directory as a hardcoded relative
+# path (walking up 4 directories from its own file location to <ComfyUI>/
+# models/IndexTTS-2.5), NOT through folder_paths.get_filename_list() like
+# UNETLoader/CLIPLoader -- so it never sees the extra network-volume search
+# path those get. Live-diagnosed: "IndexTTS-2.5 missing files in
+# /comfyui/models/IndexTTS-2.5" even though the files are on the volume at
+# /runpod-volume/models/IndexTTS-2.5. Bridge it with a symlink baked at
+# build time -- /runpod-volume doesn't exist yet during the build, but a
+# symlink only needs its target to resolve at ACCESS time, and the network
+# volume is mounted there by the time any job runs.
+RUN mkdir -p models && ln -sfn /runpod-volume/models/IndexTTS-2.5 models/IndexTTS-2.5
+
 # worker-comfyui's handler.py (baked into the base image) only recognizes
 # "images" node-output keys when building the job result -- confirmed by
 # reading its source. SaveAudio's UI result is keyed "audio" instead (unlike
