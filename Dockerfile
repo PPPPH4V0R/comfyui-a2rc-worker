@@ -198,3 +198,15 @@ RUN mkdir -p models && ln -sfn /runpod-volume/models/IndexTTS-2.5 models/IndexTT
 # See patches/patch_handler_audio.py for the exact diff and reasoning.
 COPY patches/patch_handler_audio.py /tmp/patch_handler_audio.py
 RUN python3 /tmp/patch_handler_audio.py
+
+# InstantCharacter (Tencent Hunyuan) -- whole-character (face + hairstyle +
+# outfit) consistency for the "角色定型图集" tool, replacing the Krea2 AIO
+# Yuri identity-edit path there: live testing showed Krea2's ref_boost-tuned
+# identity edit still drifted on face/hair-color/accessories for real
+# photos. InstantCharacter's node reads its FLUX/SigLIP/DINOv2/ip-adapter
+# weights from plain string paths (InstantCharacterLoadModelFromLocal), not
+# folder_paths, so the workflow just points those at the network volume's
+# absolute paths directly -- no symlink dance needed like IndexTTS-2.5 above.
+RUN git clone --depth 1 https://github.com/jax-explorer/ComfyUI-InstantCharacter.git \
+      custom_nodes/ComfyUI-InstantCharacter \
+    && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI-InstantCharacter/requirements.txt
