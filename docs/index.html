@@ -154,6 +154,37 @@
   </details>
 </div>
 
+<div id="wan22Tool" style="display:none">
+  <div class="row imageSlot"><label>起始帧图片（必需）</label>
+    <div class="drop" id="wan22Drop">点击选择图片</div>
+    <input type="file" id="wan22File" accept="image/*" style="display:none">
+    <img class="preview" id="wan22Preview">
+  </div>
+
+  <div class="row">
+    <label>提示词</label>
+    <textarea id="wan22Prompt"></textarea>
+  </div>
+  <div class="row">
+    <label>负面提示词</label>
+    <textarea id="wan22NegPrompt"></textarea>
+  </div>
+
+  <div class="row">
+    <label><input type="checkbox" id="wan22Turbo" checked style="width:auto;vertical-align:middle;margin-right:6px;">4步加速（LoRA 加速，快但质量略低；关闭则 20 步，更慢更精细）</label>
+  </div>
+
+  <div class="row">
+    <label>随机种子</label>
+    <div class="seed-row">
+      <input type="number" id="wan22Seed">
+      <button type="button" id="wan22RandomSeed">🎲 随机</button>
+    </div>
+  </div>
+
+  <p class="hint">默认输出 640×640、81 帧（约 5 秒 @16fps）。生成耗时明显长于图片工作流，请耐心等待。</p>
+</div>
+
 <div class="row">
   <button id="submit" disabled>开始生成</button>
 </div>
@@ -200,6 +231,10 @@ const WORKFLOWS = {
     label: "Krea2 AIO（双参考图编辑 + 可选 ControlNet）",
     custom: "yuri",
   },
+  wan22_i2v: {
+    label: "图生视频（Wan2.2 14B I2V）",
+    custom: "wan22",
+  },
 };
 
 const selectEl = document.getElementById('workflowSelect');
@@ -222,6 +257,9 @@ let paintedBlob = null; // for the inpaint workflow's painted composite
 
 // krea2_aio_yuri state: File objects (or null -> falls back to ref1 at submit time)
 let yuriFiles = { ref1: null, ref2: null, base: null, cn: null };
+
+// wan22_i2v state
+let wan22File = null;
 
 const YURI_NOTES = [
   "【参数组合说明】",
@@ -269,6 +307,8 @@ function updateSubmitEnabled() {
   const wf = WORKFLOWS[selectEl.value];
   if (wf.custom === 'yuri') {
     submitEl.disabled = !yuriFiles.ref1;
+  } else if (wf.custom === 'wan22') {
+    submitEl.disabled = !wan22File;
   } else if (wf.paint) {
     submitEl.disabled = !paintedBlob;
   } else {
@@ -330,14 +370,56 @@ function renderYuriUI() {
   updateSubmitEnabled();
 }
 
+function renderWan22UI() {
+  document.getElementById('imageSlots').style.display = 'none';
+  document.getElementById('promptRow').style.display = 'none';
+  document.getElementById('seedRow').style.display = 'none';
+  document.getElementById('yuriTool').style.display = 'none';
+  document.getElementById('wan22Tool').style.display = 'block';
+  resultEl.innerHTML = '';
+  statusEl.textContent = '';
+
+  wan22File = null;
+  document.getElementById('wan22Preview').style.display = 'none';
+  document.getElementById('wan22Prompt').value = 'The white dragon warrior stands still, eyes full of determination and strength. The camera slowly moves closer or circles around the warrior, highlighting the powerful presence and heroic spirit of the character.';
+  document.getElementById('wan22NegPrompt').value = '色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走';
+  document.getElementById('wan22Turbo').checked = true;
+  document.getElementById('wan22Seed').value = randomSeed();
+
+  const drop = document.getElementById('wan22Drop');
+  const fileInput = document.getElementById('wan22File');
+  const preview = document.getElementById('wan22Preview');
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    if (!fileInput.files.length) return;
+    let f = fileInput.files[0];
+    try { f = await resizeImageFile(f); } catch (e) {}
+    wan22File = f;
+    preview.src = URL.createObjectURL(f);
+    preview.style.display = 'block';
+    updateSubmitEnabled();
+  };
+
+  document.getElementById('wan22RandomSeed').onclick = () => {
+    document.getElementById('wan22Seed').value = randomSeed();
+  };
+
+  updateSubmitEnabled();
+}
+
 function renderWorkflowUI() {
   const wf = WORKFLOWS[selectEl.value];
   document.getElementById('yuriTool').style.display = 'none';
+  document.getElementById('wan22Tool').style.display = 'none';
   document.getElementById('imageSlots').style.display = '';
   document.getElementById('promptRow').style.display = '';
   document.getElementById('seedRow').style.display = '';
   if (wf.custom === 'yuri') {
     renderYuriUI();
+    return;
+  }
+  if (wf.custom === 'wan22') {
+    renderWan22UI();
     return;
   }
   promptEl.value = wf.defaultPrompt || '';
@@ -562,6 +644,22 @@ async function buildYuriPayload() {
   return { workflow, images };
 }
 
+async function buildWan22Payload() {
+  const workflow = JSON.parse(JSON.stringify(TEMPLATES['wan22_i2v']));
+  const b64 = await fileToBase64(wan22File);
+  const images = [{ name: 'start_image.jpg', image: b64 }];
+
+  workflow['97'].inputs.image = 'start_image.jpg';
+  workflow['129/93'].inputs.text = document.getElementById('wan22Prompt').value;
+  workflow['129/89'].inputs.text = document.getElementById('wan22NegPrompt').value;
+  workflow['129/131'].inputs.value = document.getElementById('wan22Turbo').checked;
+
+  const seed = parseInt(document.getElementById('wan22Seed').value, 10) || randomSeed();
+  workflow['129/86'].inputs.noise_seed = seed;
+
+  return { workflow, images };
+}
+
 submitEl.onclick = async () => {
   const wfId = selectEl.value;
   const wfDef = WORKFLOWS[wfId];
@@ -573,6 +671,8 @@ submitEl.onclick = async () => {
   try {
     if (wfDef.custom === 'yuri') {
       ({ workflow, images } = await buildYuriPayload());
+    } else if (wfDef.custom === 'wan22') {
+      ({ workflow, images } = await buildWan22Payload());
     } else if (wfDef.paint) {
       const b64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -673,8 +773,15 @@ submitEl.onclick = async () => {
         return;
       }
       statusEl.textContent = '完成！';
-      const dataUrl = 'data:image/png;base64,' + img.data;
-      resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.png">下载结果</a>';
+      const ext = (img.filename.split('.').pop() || 'png').toLowerCase();
+      const videoExts = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
+      if (videoExts[ext]) {
+        const dataUrl = 'data:' + videoExts[ext] + ';base64,' + img.data;
+        resultEl.innerHTML = '<video src="' + dataUrl + '" controls autoplay loop playsinline style="max-width:100%;border-radius:8px;margin-top:10px"></video><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
+      } else {
+        const dataUrl = 'data:image/png;base64,' + img.data;
+        resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.png">下载结果</a>';
+      }
       submitEl.disabled = false;
     } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
       document.removeEventListener('visibilitychange', onVisibilityChange);
