@@ -210,3 +210,15 @@ RUN python3 /tmp/patch_handler_audio.py
 RUN git clone --depth 1 https://github.com/jax-explorer/ComfyUI-InstantCharacter.git \
       custom_nodes/ComfyUI-InstantCharacter \
     && uv pip install --python /opt/venv/bin/python -r custom_nodes/ComfyUI-InstantCharacter/requirements.txt
+
+# Live-diagnosed: ComfyUI's own node loader reported "InstantCharacterLoadModelFromLocal
+# not found" at RUNTIME, meaning the package's imports raised somewhere during
+# ComfyUI's custom_nodes loading -- but this endpoint's worker logs only expose
+# "system" (container lifecycle) events, never "container" (stdout/stderr), so
+# there's no way to see the actual traceback from a live worker. Reproduce the
+# exact import chain at BUILD time instead, via a small script file (avoids
+# shell-quoting a multi-line python -c string): a failure here fails the
+# build and prints the traceback straight into the GitHub Actions log, which
+# we CAN read, unlike the runtime worker logs.
+COPY patches/check_instantcharacter_import.py custom_nodes/ComfyUI-InstantCharacter/check_import.py
+RUN cd custom_nodes/ComfyUI-InstantCharacter && /opt/venv/bin/python check_import.py
