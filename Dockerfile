@@ -176,3 +176,13 @@ RUN git clone --depth 1 https://github.com/chenpipi0807/ComfyUI-Index-TTS.git \
          | grep -v '^git+https://github.com/descriptinc/audiotools' \
          > /tmp/indextts-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/indextts-reqs.txt
+
+# worker-comfyui's handler.py (baked into the base image) only recognizes
+# "images" node-output keys when building the job result -- confirmed by
+# reading its source. SaveAudio's UI result is keyed "audio" instead (unlike
+# SaveVideo, which happens to reuse "images" -- a different node's ui.as_dict()
+# choice, not a version thing), so without this patch a TTS job would
+# complete "successfully" in ComfyUI's own terms but return no audio at all.
+# See patches/patch_handler_audio.py for the exact diff and reasoning.
+COPY patches/patch_handler_audio.py /tmp/patch_handler_audio.py
+RUN python3 /tmp/patch_handler_audio.py
