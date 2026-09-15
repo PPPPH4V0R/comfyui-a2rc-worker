@@ -162,3 +162,17 @@ RUN git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git \
 # the final, unconditional word after every other node pack's deps have
 # landed, so it's never the one left overwritten.
 RUN uv pip install --python /opt/venv/bin/python --force-reinstall opencv-contrib-python
+
+# Index TTS 2.5 nodes -- text-to-speech with zero-shot voice cloning, for the
+# "配音" (dubbing) stage of the AI短剧 pipeline. Filter out its torch pin (same
+# clobbering risk as every other pack here) and the git+https descript-
+# audiotools line -- the requirements.txt lists it twice (once as a git+
+# checkout, once pinned to 0.7.2 on PyPI); keep only the PyPI one, since both
+# installing would just repeat the same package for no benefit and the git
+# checkout is slower and less reproducible.
+RUN git clone --depth 1 https://github.com/chenpipi0807/ComfyUI-Index-TTS.git \
+      custom_nodes/ComfyUI-Index-TTS \
+    && grep -v -i '^torch' custom_nodes/ComfyUI-Index-TTS/requirements.txt \
+         | grep -v '^git+https://github.com/descriptinc/audiotools' \
+         > /tmp/indextts-reqs.txt \
+    && uv pip install --python /opt/venv/bin/python -r /tmp/indextts-reqs.txt
