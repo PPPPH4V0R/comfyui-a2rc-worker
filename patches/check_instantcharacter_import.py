@@ -1,20 +1,32 @@
 """
-Build-time smoke test for ComfyUI-InstantCharacter's import chain.
+Diagnostic for ComfyUI-InstantCharacter's import chain -- run via `docker run`
+against the freshly built image from .github/workflows/build.yml (posted to
+the Actions step summary), not at build time. Mirrors what ComfyUI's
+custom_nodes loader does at runtime: namespace-package imports for
+InstantCharacter.pipeline and nodes.comfy_nodes. Live-diagnosed failure:
+ComfyUI silently registered zero nodes from this package
+("InstantCharacterLoadModelFromLocal not found") with no way to see why --
+this endpoint's worker logs never expose container stdout/stderr, and this
+repo's Actions raw logs require a GitHub login to view.
 
-Mirrors what ComfyUI's custom_nodes loader does at runtime -- namespace-
-package imports for InstantCharacter.pipeline and nodes.comfy_nodes -- so a
-failure here fails the Docker build with the real traceback in the GitHub
-Actions log, instead of silently registering zero nodes at runtime (which is
-all we could observe live: "InstantCharacterLoadModelFromLocal not found").
+Uses an absolute path (not cwd-relative) since this may run via
+`docker run --entrypoint` from an arbitrary working directory.
 """
 import sys
+import traceback
 
-sys.path.insert(0, ".")
+sys.path.insert(0, "/comfyui/custom_nodes/ComfyUI-InstantCharacter")
 
-from InstantCharacter.pipeline import InstantCharacterFluxPipeline  # noqa: F401
+try:
+    from InstantCharacter.pipeline import InstantCharacterFluxPipeline  # noqa: F401
 
-print("InstantCharacter.pipeline OK")
+    print("InstantCharacter.pipeline OK")
+except Exception:
+    traceback.print_exc()
 
-from nodes.comfy_nodes import InstantCharacterLoadModelFromLocal  # noqa: F401
+try:
+    from nodes.comfy_nodes import InstantCharacterLoadModelFromLocal  # noqa: F401
 
-print("nodes.comfy_nodes OK")
+    print("nodes.comfy_nodes OK")
+except Exception:
+    traceback.print_exc()
