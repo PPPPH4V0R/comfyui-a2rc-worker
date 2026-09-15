@@ -236,6 +236,34 @@
   <p class="hint">发音标注可以直接写在文本里，例如中文拼音 他在银&lt;行|XING2&gt;里&lt;行|HANG2&gt;走了半天。首次调用需要额外加载情感/语言模型，冷启动会比图片工作流更慢。</p>
 </div>
 
+<div id="charSheetTool" style="display:none">
+  <div class="row imageSlot"><label>角色参考图（必需，一张清晰正面照/立绘）</label>
+    <div class="drop" id="charSheetDrop">点击选择图片</div>
+    <input type="file" id="charSheetFile" accept="image/*" style="display:none">
+    <img class="preview" id="charSheetPreview">
+  </div>
+
+  <div class="row">
+    <label>要生成的镜头（每行一个，会保持角色外貌/发型/服装一致）</label>
+    <textarea id="charSheetShots" style="min-height:160px"></textarea>
+  </div>
+
+  <div class="row">
+    <label>负面提示词（可选）</label>
+    <textarea id="charSheetNegPrompt" style="min-height:50px"></textarea>
+  </div>
+
+  <div class="row">
+    <label>随机种子（每张图会在此基础上依次 +1，保证同一批次可复现）</label>
+    <div class="seed-row">
+      <input type="number" id="charSheetSeed">
+      <button type="button" id="charSheetRandomSeed">🎲 随机</button>
+    </div>
+  </div>
+
+  <p class="hint">底层复用 Krea2 AIO 的"身份保持编辑"模式，会依次提交每一行对应一个生成任务，逐张显示结果，耐心等待即可。</p>
+</div>
+
 <div class="row">
   <button id="submit" disabled>开始生成</button>
 </div>
@@ -290,6 +318,10 @@ const WORKFLOWS = {
     label: "配音（IndexTTS-2.5 音色克隆）",
     custom: "tts",
   },
+  char_sheet: {
+    label: "角色定型图集（多角度/表情/姿势）",
+    custom: "charsheet",
+  },
 };
 
 const selectEl = document.getElementById('workflowSelect');
@@ -318,6 +350,20 @@ let wan22File = null;
 
 // tts_indextts25 state
 let ttsFile = null;
+
+// char_sheet state
+let charSheetFile = null;
+
+const CHAR_SHEET_DEFAULT_SHOTS = [
+  "正面标准像，表情自然，直视镜头",
+  "45度侧脸，表情自然",
+  "背面全身像",
+  "微笑表情特写",
+  "惊讶表情特写",
+  "生气/愤怒表情特写",
+  "全身站立姿势，双手自然下垂",
+  "行走中的动态姿势，侧身",
+].join("\n");
 
 const YURI_NOTES = [
   "【参数组合说明】",
@@ -369,6 +415,8 @@ function updateSubmitEnabled() {
     submitEl.disabled = !wan22File;
   } else if (wf.custom === 'tts') {
     submitEl.disabled = !ttsFile || !document.getElementById('ttsText').value.trim();
+  } else if (wf.custom === 'charsheet') {
+    submitEl.disabled = !charSheetFile || !document.getElementById('charSheetShots').value.trim();
   } else if (wf.paint) {
     submitEl.disabled = !paintedBlob;
   } else {
@@ -509,11 +557,52 @@ function renderTtsUI() {
   updateSubmitEnabled();
 }
 
+function renderCharSheetUI() {
+  document.getElementById('imageSlots').style.display = 'none';
+  document.getElementById('promptRow').style.display = 'none';
+  document.getElementById('seedRow').style.display = 'none';
+  document.getElementById('yuriTool').style.display = 'none';
+  document.getElementById('wan22Tool').style.display = 'none';
+  document.getElementById('ttsTool').style.display = 'none';
+  document.getElementById('charSheetTool').style.display = 'block';
+  resultEl.innerHTML = '';
+  statusEl.textContent = '';
+
+  charSheetFile = null;
+  document.getElementById('charSheetPreview').style.display = 'none';
+  document.getElementById('charSheetShots').value = CHAR_SHEET_DEFAULT_SHOTS;
+  document.getElementById('charSheetNegPrompt').value = '';
+  document.getElementById('charSheetSeed').value = randomSeed();
+
+  const drop = document.getElementById('charSheetDrop');
+  const fileInput = document.getElementById('charSheetFile');
+  const preview = document.getElementById('charSheetPreview');
+  drop.onclick = () => fileInput.click();
+  fileInput.onchange = async () => {
+    if (!fileInput.files.length) return;
+    let f = fileInput.files[0];
+    try { f = await resizeImageFile(f); } catch (e) {}
+    charSheetFile = f;
+    preview.src = URL.createObjectURL(f);
+    preview.style.display = 'block';
+    updateSubmitEnabled();
+  };
+
+  document.getElementById('charSheetShots').oninput = updateSubmitEnabled;
+
+  document.getElementById('charSheetRandomSeed').onclick = () => {
+    document.getElementById('charSheetSeed').value = randomSeed();
+  };
+
+  updateSubmitEnabled();
+}
+
 function renderWorkflowUI() {
   const wf = WORKFLOWS[selectEl.value];
   document.getElementById('yuriTool').style.display = 'none';
   document.getElementById('wan22Tool').style.display = 'none';
   document.getElementById('ttsTool').style.display = 'none';
+  document.getElementById('charSheetTool').style.display = 'none';
   document.getElementById('imageSlots').style.display = '';
   document.getElementById('promptRow').style.display = '';
   document.getElementById('seedRow').style.display = '';
@@ -527,6 +616,10 @@ function renderWorkflowUI() {
   }
   if (wf.custom === 'tts') {
     renderTtsUI();
+    return;
+  }
+  if (wf.custom === 'charsheet') {
+    renderCharSheetUI();
     return;
   }
   promptEl.value = wf.defaultPrompt || '';
@@ -790,9 +883,132 @@ async function buildTtsPayload() {
   return { workflow, images };
 }
 
+// char_sheet reuses the Krea2 AIO Yuri template's "单图编辑" (single-image
+// identity edit) path: one reference image feeds all four of its image
+// slots, Identity Edit stays on, latent mode is set to blank (so the model
+// isn't anchored to the reference's own pose/framing), and every ControlNet
+// stays off. Only the prompt (one line per requested shot) and seed change
+// between jobs.
+function buildCharSheetWorkflow(imageName, shotPrompt, negPrompt, seed) {
+  const workflow = JSON.parse(JSON.stringify(TEMPLATES['krea2_aio_yuri']));
+  workflow['1171'].inputs.image = imageName;
+  workflow['1172'].inputs.image = imageName;
+  workflow['97'].inputs.image = imageName;
+  workflow['1501'].inputs.image = imageName;
+
+  const prompt = '图1中的角色，保持外貌、发型、服装特征不变，' + shotPrompt;
+  workflow['1178'].inputs.String = prompt;
+  workflow['1176'].inputs.String = prompt;
+  workflow['1179'].inputs.String = negPrompt;
+  workflow['1177'].inputs.String = negPrompt;
+
+  workflow['1208/1404'].inputs.boolean = 1; // Identity Edit on
+  workflow['1197/1322'].inputs.select = 3; // blank latent by aspect ratio
+  workflow['1197/123'].inputs.aspect_ratio = '3:4 (Portrait Standard)';
+  workflow['1203/1474'].inputs.boolean = false; // CN depth
+  workflow['1203/1472'].inputs.boolean = false; // CN pose
+  workflow['1203/1473'].inputs.boolean = false; // CN anything
+  workflow['53'].inputs.seed = seed;
+
+  return workflow;
+}
+
+async function pollJobInto(jobId, cellEl) {
+  const headers = { "Content-Type": "application/json" };
+  let pollFailCount = 0;
+  for (;;) {
+    let data;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const r = await fetch(API_BASE + "/status/" + jobId, { headers, signal: controller.signal });
+      clearTimeout(timeoutId);
+      data = await r.json();
+      pollFailCount = 0;
+    } catch (e) {
+      pollFailCount++;
+      cellEl.querySelector('.cs-status').textContent = pollFailCount >= 2 ? '网络波动，重试中…' : '轮询中…';
+      await new Promise(res => setTimeout(res, Math.min(4000 + (pollFailCount - 1) * 2000, 15000)));
+      continue;
+    }
+    if (data.status === 'COMPLETED') {
+      const img = data.output && data.output.images && data.output.images[0];
+      if (!img) {
+        cellEl.querySelector('.cs-status').innerHTML = '<span class="error">完成但没有返回图片</span>';
+        return;
+      }
+      const dataUrl = 'data:image/png;base64,' + img.data;
+      cellEl.innerHTML = '<img src="' + dataUrl + '" style="width:100%;border-radius:8px;display:block"><a href="' + dataUrl + '" download="' + cellEl.dataset.filename + '.png" style="display:block;text-align:center;margin-top:4px;font-size:.85rem">下载</a>';
+      return;
+    }
+    if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
+      cellEl.querySelector('.cs-status').innerHTML = '<span class="error">失败: ' + (data.error || data.status) + '</span>';
+      return;
+    }
+    cellEl.querySelector('.cs-status').textContent = data.status + ' …';
+    await new Promise(res => setTimeout(res, 3000));
+  }
+}
+
+async function runCharSheetGeneration() {
+  const shots = document.getElementById('charSheetShots').value.split('\n').map(s => s.trim()).filter(Boolean);
+  const negPrompt = document.getElementById('charSheetNegPrompt').value;
+  const baseSeed = parseInt(document.getElementById('charSheetSeed').value, 10) || randomSeed();
+
+  statusEl.textContent = '编码图片中…';
+  let b64;
+  try {
+    b64 = await fileToBase64(charSheetFile);
+  } catch (e) {
+    statusEl.innerHTML = '<span class="error">读取图片失败: ' + e.message + '</span>';
+    submitEl.disabled = false;
+    return;
+  }
+  const imageName = 'char_ref.jpg';
+  const images = [{ name: imageName, image: b64 }];
+
+  resultEl.innerHTML = '';
+  resultEl.style.display = 'grid';
+  resultEl.style.gridTemplateColumns = 'repeat(auto-fill, minmax(140px, 1fr))';
+  resultEl.style.gap = '10px';
+  statusEl.textContent = '提交 ' + shots.length + ' 个生成任务中…';
+
+  const cells = shots.map((shot, i) => {
+    const cell = document.createElement('div');
+    cell.dataset.filename = 'char_' + (i + 1);
+    cell.innerHTML = '<div style="font-size:.8rem;margin-bottom:4px">' + (i + 1) + '. ' + shot + '</div><div class="cs-status" style="font-size:.8rem;color:#888">排队中…</div>';
+    resultEl.appendChild(cell);
+    return cell;
+  });
+
+  const headers = { "Content-Type": "application/json" };
+  await Promise.all(shots.map(async (shot, i) => {
+    const workflow = buildCharSheetWorkflow(imageName, shot, negPrompt, baseSeed + i);
+    try {
+      const r = await fetch(API_BASE + "/run", { method: "POST", headers, body: JSON.stringify({ input: { workflow, images } }) });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || ("HTTP " + r.status));
+      await pollJobInto(data.id, cells[i]);
+    } catch (e) {
+      cells[i].querySelector('.cs-status').innerHTML = '<span class="error">提交失败: ' + e.message + '</span>';
+    }
+  }));
+
+  statusEl.textContent = '全部完成！';
+  resultEl.style.display = '';
+  resultEl.style.gridTemplateColumns = '';
+  resultEl.style.gap = '';
+  submitEl.disabled = false;
+}
+
 submitEl.onclick = async () => {
   const wfId = selectEl.value;
   const wfDef = WORKFLOWS[wfId];
+  if (wfDef.custom === 'charsheet') {
+    submitEl.disabled = true;
+    await runCharSheetGeneration();
+    return;
+  }
   submitEl.disabled = true;
   resultEl.innerHTML = '';
   statusEl.textContent = '编码图片中…';
