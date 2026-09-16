@@ -31,16 +31,21 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
-          load: true
           tags: |
             ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:v1
             ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # `load: true` on the build step above ran the runner out of disk (the
+      # image is big enough that a build-cache copy + a locally-loaded copy +
+      # the pushed layers didn't all fit) -- pull fresh here instead, after
+      # buildx's own cache/layers from the step above are no longer needed.
       - name: Diagnose InstantCharacter import
-        if: always()
+        if: success()
         run: |
+          docker system prune -af >/dev/null 2>&1 || true
+          docker pull ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}
           {
             echo '## InstantCharacter import diagnostic'
             echo '```'
