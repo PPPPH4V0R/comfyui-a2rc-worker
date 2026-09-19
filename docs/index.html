@@ -797,17 +797,32 @@ async function buildYuriPayload() {
 
   // ref1 is required (enforced by updateSubmitEnabled); any slot left empty
   // reuses ref1's file so the still-wired-but-toggled-off branches always
-  // have a real image to load.
+  // have a real image to load. When a slot falls back to (or is literally
+  // re-picked as) the same File as another slot, encode and upload it only
+  // ONCE and point both workflow slots at that one name -- RunPod's /run
+  // rejects request bodies over 10MiB, and encoding+uploading the same
+  // multi-MB photo 3-4x over (one per slot) blew through that ceiling for
+  // real phone photos, surfacing as an immediate submit failure.
   const files = {
     ref1: yuriFiles.ref1,
     ref2: yuriFiles.ref2 || yuriFiles.ref1,
     base: yuriFiles.base || yuriFiles.ref1,
     cn: yuriFiles.cn || yuriFiles.ref1,
   };
-  const names = { ref1: 'ref1.jpg', ref2: 'ref2.jpg', base: 'base.jpg', cn: 'cn.jpg' };
+  const names = {};
+  const uploadedFor = new Map(); // File -> already-assigned upload name
+  let nextIndex = 1;
   for (const key of ['ref1', 'ref2', 'base', 'cn']) {
-    const b64 = await fileToBase64(files[key]);
-    images.push({ name: names[key], image: b64 });
+    const file = files[key];
+    if (uploadedFor.has(file)) {
+      names[key] = uploadedFor.get(file);
+      continue;
+    }
+    const name = 'ref_upload_' + (nextIndex++) + '.jpg';
+    const b64 = await fileToBase64(file);
+    images.push({ name, image: b64 });
+    uploadedFor.set(file, name);
+    names[key] = name;
   }
 
   workflow['1171'].inputs.image = names.ref1;
