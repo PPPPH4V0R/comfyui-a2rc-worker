@@ -41,16 +41,37 @@ jobs:
       # image is big enough that a build-cache copy + a locally-loaded copy +
       # the pushed layers didn't all fit) -- pull fresh here instead, after
       # buildx's own cache/layers from the step above are no longer needed.
+      #
+      # `set +e` throughout: GH Actions bash steps run with `-e` by default,
+      # so ANY failing command (a flaky pull right after push, prune finding
+      # nothing to clean, etc.) aborts the script before the summary block
+      # ever runs -- which is exactly what silently happened last time. Every
+      # command's own outcome gets written to the summary instead of trusted
+      # to not fail.
       - name: Diagnose InstantCharacter import
         if: success()
         run: |
-          docker system prune -af >/dev/null 2>&1 || true
-          docker pull ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}
+          set +e
+          IMG="ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }}"
           {
             echo '## InstantCharacter import diagnostic'
+            echo '### docker system prune'
             echo '```'
-            docker run --rm --entrypoint /opt/venv/bin/python \
-              ghcr.io/${{ steps.vars.outputs.owner }}/comfyui-a2rc:sha-${{ github.sha }} \
-              /comfyui/custom_nodes/ComfyUI-InstantCharacter/check_import.py 2>&1 || true
+            docker system prune -af 2>&1
+            echo '```'
+            echo '### docker pull'
+            echo '```'
+            for i in 1 2 3; do
+              docker pull "$IMG" 2>&1 && break
+              echo "--- pull attempt $i failed, retrying ---"
+              sleep 5
+            done
+            echo '```'
+            echo '### import check'
+            echo '```'
+            docker run --rm --entrypoint /opt/venv/bin/python "$IMG" \
+              /comfyui/custom_nodes/ComfyUI-InstantCharacter/check_import.py 2>&1
+            echo "exit code: $?"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
