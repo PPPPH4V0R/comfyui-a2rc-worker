@@ -34,6 +34,20 @@ def handler(job):
         exists = os.path.exists(path)
         return {"exists": exists, "size": os.path.getsize(path) if exists else 0}
 
+    if action == "du":
+        # The volume sits on shared storage, so disk_usage() reports the whole
+        # cluster; sum the files ourselves to see this volume's own usage.
+        root = inp.get("path", "/runpod-volume")
+        per_dir, total = {}, 0
+        for dirpath, _dirs, files in os.walk(root):
+            size = sum(os.path.getsize(os.path.join(dirpath, f)) for f in files
+                       if not os.path.islink(os.path.join(dirpath, f)))
+            total += size
+            top = os.path.relpath(dirpath, root).split(os.sep)[:2]
+            key = "/".join(top)
+            per_dir[key] = per_dir.get(key, 0) + size
+        return {"total": total, "per_dir": per_dir}
+
     if action == "diskfree":
         total, used, free = shutil.disk_usage(inp.get("path", "/runpod-volume"))
         return {"total": total, "used": used, "free": free}
