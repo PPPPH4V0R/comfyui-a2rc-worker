@@ -42,6 +42,10 @@ def handler(job):
     url = inp["url"]
     dest = inp["dest"]
     headers = inp.get("headers", {})
+    # The Civitai key lives in the endpoint's env (set in the Runpod console),
+    # so it never has to travel inside job payloads.
+    if "civitai.com" in url and "Authorization" not in headers and os.environ.get("CIVITAI_TOKEN"):
+        headers["Authorization"] = f"Bearer {os.environ['CIVITAI_TOKEN']}"
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     cmd = ["curl", "-L", "-o", dest, "--fail", "--retry", "3", "--connect-timeout", "30"]
     for k, v in headers.items():

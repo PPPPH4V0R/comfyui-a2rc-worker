@@ -83,12 +83,10 @@ RUN git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes.git \
 RUN git clone --depth 1 https://github.com/facok/comfyui-krea2-controlnet.git \
       custom_nodes/comfyui-krea2-controlnet
 
-# ImpactSwitch -- a ~15-line local shim (see shim-nodes/impact_switch_shim)
-# reimplementing just this one node's behavior, instead of the full
-# ComfyUI-Impact-Pack (which drags in segment-anything, scikit-image,
-# transformers, and a git-built sam2 -- all unused; the AIO Yuri workflow
-# only exercises Impact-Pack's trivial "pick input{N}" switch node).
-COPY shim-nodes/impact_switch_shim custom_nodes/impact_switch_shim
+# ImpactSwitch now comes from the real ComfyUI-Impact-Pack installed further
+# down (workflow 16 needs its FaceDetailer/SAMLoader), so the local
+# shim-nodes/impact_switch_shim is no longer copied in -- two packs
+# registering the same class name would leave which one wins to load order.
 
 # Context (rgthree), Context Big (rgthree), Power Lora Loader (rgthree),
 # SetNode/GetNode -- the AIO Yuri workflow's "bus" pattern and Set/Get
@@ -155,6 +153,60 @@ RUN git clone --depth 1 https://github.com/ClownsharkBatwing/RES4LYF.git \
       custom_nodes/RES4LYF \
     && grep -v -i '^opencv' custom_nodes/RES4LYF/requirements.txt > /tmp/res4lyf-reqs.txt \
     && uv pip install --python /opt/venv/bin/python -r /tmp/res4lyf-reqs.txt
+
+# ---- Workflow 16 (anime / cosplay / FLUX upscale) ----------------------------
+# Its packs pull in ultralytics, segment-anything, timm, llama.cpp ... any of
+# which could otherwise drag torch (must stay the cu126 build, see above) or
+# transformers to a different version transitively. Freeze what is installed
+# now and hold every install below to it.
+RUN uv pip freeze --python /opt/venv/bin/python \
+      | grep -iE '^(torch|torchvision|torchaudio|transformers|numpy)==' > /tmp/wf16-constraints.txt \
+    && cat /tmp/wf16-constraints.txt
+
+RUN cd custom_nodes \
+    && git clone --depth 1 https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git \
+    && git clone --depth 1 https://github.com/laksjdjf/cgem156-ComfyUI.git \
+    && git clone --depth 1 https://github.com/sipherxyz/comfyui-art-venture.git \
+    && git clone --depth 1 https://github.com/Jonseed/ComfyUI-Detail-Daemon.git \
+    && git clone --depth 1 https://github.com/kijai/ComfyUI-Florence2.git \
+    && git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Pack.git \
+    && git clone --depth 1 https://github.com/ltdrdata/ComfyUI-Impact-Subpack.git \
+    && git clone --depth 1 https://github.com/Fannovel16/comfyui_controlnet_aux.git \
+    && git clone --depth 1 https://github.com/cubiq/ComfyUI_essentials.git \
+    && git clone --depth 1 https://github.com/cubiq/ComfyUI_IPAdapter_plus.git \
+    && git clone --recurse-submodules --depth 1 https://github.com/ssitu/ComfyUI_UltimateSDUpscale.git \
+    && git clone --depth 1 https://github.com/jags111/efficiency-nodes-comfyui.git \
+    && git clone --depth 1 https://github.com/welltop-cn/ComfyUI-TeaCache.git \
+    && git clone --depth 1 https://github.com/KohakuBlueleaf/z-tipo-extension.git
+
+# TIPO (z-tipo-extension) runs its GGUF prompt model through llama.cpp on CPU;
+# take the prebuilt CPU wheel so nothing has to compile llama.cpp here.
+RUN uv pip install --python /opt/venv/bin/python -c /tmp/wf16-constraints.txt \
+      --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu llama-cpp-python
+
+RUN for d in ComfyUI_Comfyroll_CustomNodes cgem156-ComfyUI comfyui-art-venture ComfyUI-Detail-Daemon \
+             ComfyUI-Florence2 ComfyUI-Impact-Pack ComfyUI-Impact-Subpack comfyui_controlnet_aux \
+             ComfyUI_essentials ComfyUI_IPAdapter_plus ComfyUI_UltimateSDUpscale efficiency-nodes-comfyui \
+             ComfyUI-TeaCache z-tipo-extension; do \
+      f="custom_nodes/$d/requirements.txt"; \
+      if [ -f "$f" ]; then \
+        echo "== $d" \
+        && grep -v -iE '^(torch|torchvision|torchaudio|opencv)' "$f" > /tmp/req-$d.txt \
+        && uv pip install --python /opt/venv/bin/python -c /tmp/wf16-constraints.txt -r /tmp/req-$d.txt \
+        || exit 1; \
+      fi; \
+    done
+
+# These packs look for weights under <ComfyUI>/models/<folder> (or their own
+# ckpts dir) rather than through the extra_model_paths mapping, same situation
+# as IndexTTS-2.5 above -- bridge each to the network volume. TIPO and
+# Florence2 also create/download into these at runtime, so the targets must
+# exist on the volume before a job runs (the model download step makes them).
+RUN for d in sams ultralytics ipadapter LLM kgen; do \
+      rm -rf "models/$d" && ln -s "/runpod-volume/models/$d" "models/$d" || exit 1; \
+    done \
+    && rm -rf custom_nodes/comfyui_controlnet_aux/ckpts \
+    && ln -s /runpod-volume/models/annotators custom_nodes/comfyui_controlnet_aux/ckpts
 
 # The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
 # lines; transitive deps can still silently overwrite LayerStyle's
