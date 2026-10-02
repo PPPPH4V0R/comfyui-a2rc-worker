@@ -831,8 +831,9 @@ submitEl.onclick = async () => {
         const dataUrl = 'data:' + audioExts[ext] + ';base64,' + img.data;
         resultEl.innerHTML = '<audio src="' + dataUrl + '" controls autoplay style="width:100%;margin-top:10px"></audio><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
       } else {
-        const dataUrl = 'data:image/png;base64,' + img.data;
-        resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.png">下载结果</a>';
+        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+        const dataUrl = 'data:' + mime + ';base64,' + img.data;
+        resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.' + (mime === 'image/png' ? 'png' : ext) + '">下载结果</a>';
       }
       submitEl.disabled = false;
     } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
