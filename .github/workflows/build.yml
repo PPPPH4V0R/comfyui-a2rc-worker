@@ -3,6 +3,12 @@ name: Build and push ComfyUI worker image
 on:
   push:
     branches: [main]
+    # Page publishes and downloader changes don't touch the worker image.
+    paths-ignore:
+      - "docs/**"
+      - "downloader/**"
+      - ".github/workflows/build-downloader.yml"
+      - "README.md"
   workflow_dispatch:
 
 permissions:
