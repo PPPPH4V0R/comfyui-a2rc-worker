@@ -17,6 +17,7 @@ with open(HANDLER_PATH, "r", encoding="utf-8") as f:
 
 helper = '''
 RESULT_BUDGET = int(os.environ.get("RESULT_BUDGET_BYTES", 15_000_000))
+_STREAM_JOB = False  # set per job by stream_handler (patch_handler_stream.py)
 
 
 def _fit_result_budget(items):
@@ -24,7 +25,8 @@ def _fit_result_budget(items):
     def total():
         return sum(len(it.get("data", "")) for it in items if it.get("type") == "base64")
 
-    if total() <= RESULT_BUDGET:
+    # Streamed jobs send one image per message, so each stays far below the limit.
+    if _STREAM_JOB or total() <= RESULT_BUDGET:
         return items
     from PIL import Image
 

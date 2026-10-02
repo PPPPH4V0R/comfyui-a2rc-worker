@@ -257,6 +257,11 @@ RUN python3 /tmp/patch_handler_audio.py
 COPY patches/patch_handler_payload.py /tmp/patch_handler_payload.py
 RUN python3 /tmp/patch_handler_payload.py
 
+# Lets a page ask for its images one stream message each (full PNG quality,
+# no size cap). See patches/patch_handler_stream.py.
+COPY patches/patch_handler_stream.py /tmp/patch_handler_stream.py
+RUN python3 /tmp/patch_handler_stream.py
+
 # InstantCharacter (Tencent Hunyuan) -- whole-character (face + hairstyle +
 # outfit) consistency for the "角色定型图集" tool, replacing the Krea2 AIO
 # Yuri identity-edit path there: live testing showed Krea2's ref_boost-tuned
