@@ -814,7 +814,9 @@ submitEl.onclick = async () => {
     }
     if (data.status === 'COMPLETED') {
       document.removeEventListener('visibilitychange', onVisibilityChange);
-      const img = (data.output && data.output.images && data.output.images[0]);
+      // The worker's handler is a generator, so /status output arrives as [result].
+      const out = Array.isArray(data.output) ? data.output[0] : data.output;
+      const img = (out && out.images && out.images[0]);
       if (!img) {
         statusEl.innerHTML = '<span class="error">完成但没有返回图片</span>';
         submitEl.disabled = false;
