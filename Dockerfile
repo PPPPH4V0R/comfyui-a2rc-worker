@@ -251,6 +251,12 @@ RUN mkdir -p models && ln -sfn /runpod-volume/models/IndexTTS-2.5 models/IndexTT
 COPY patches/patch_handler_audio.py /tmp/patch_handler_audio.py
 RUN python3 /tmp/patch_handler_audio.py
 
+# Runpod rejects job results over ~20 MB ("Failed to return job results | 400
+# ... /job-done/"); workflow 16 returns eight full-size PNGs (~31 MB base64).
+# See patches/patch_handler_payload.py.
+COPY patches/patch_handler_payload.py /tmp/patch_handler_payload.py
+RUN python3 /tmp/patch_handler_payload.py
+
 # InstantCharacter (Tencent Hunyuan) -- whole-character (face + hairstyle +
 # outfit) consistency for the "角色定型图集" tool, replacing the Krea2 AIO
 # Yuri identity-edit path there: live testing showed Krea2's ref_boost-tuned
