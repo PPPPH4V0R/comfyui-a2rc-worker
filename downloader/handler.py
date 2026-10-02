@@ -76,6 +76,21 @@ def handler(job):
             per_dir[key] = per_dir.get(key, 0) + size
         return {"total": total, "per_dir": per_dir}
 
+    if action == "tree":
+        # Model file names under each folder, relative to it; the web pages use this
+        # to offer what is actually on the volume without being republished.
+        root = "/runpod-volume/models"
+        out = {}
+        for folder in inp.get("folders", ["loras", "checkpoints", "diffusion_models", "unet"]):
+            base = os.path.join(root, os.path.normpath(folder).lstrip("./"))
+            names = []
+            for dirpath, _dirs, files in os.walk(base, followlinks=True):
+                for f in files:
+                    if f.endswith((".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft")):
+                        names.append(os.path.relpath(os.path.join(dirpath, f), base).replace(os.sep, "/"))
+            out[folder] = sorted(names)
+        return out
+
     if action == "diskfree":
         total, used, free = shutil.disk_usage(inp.get("path", "/runpod-volume"))
         return {"total": total, "used": used, "free": free}
