@@ -208,6 +208,20 @@ RUN for d in sams ultralytics ipadapter LLM kgen; do \
     && rm -rf custom_nodes/comfyui_controlnet_aux/ckpts \
     && ln -s /runpod-volume/models/annotators custom_nodes/comfyui_controlnet_aux/ckpts
 
+# ---- Video character replacement (Wan 2.2 Animate, replace mode) -----------
+# WanAnimateToVideo itself is core; these add the automatic person mask:
+# ViTPose/YOLO (ONNX) find the person and face in every frame, SAM2 turns the
+# boxes into a per-frame mask. Both packs load weights from their own
+# <ComfyUI>/models/<folder>, so bridge those to the network volume too.
+RUN cd custom_nodes \
+    && git clone --depth 1 https://github.com/kijai/ComfyUI-WanAnimatePreprocess.git \
+    && git clone --depth 1 https://github.com/kijai/ComfyUI-segment-anything-2.git \
+    && grep -v -iE '^(torch|torchvision|torchaudio|opencv)' ComfyUI-WanAnimatePreprocess/requirements.txt > /tmp/req-wanpre.txt \
+    && uv pip install --python /opt/venv/bin/python -c /tmp/wf16-constraints.txt -r /tmp/req-wanpre.txt
+RUN for d in detection sam2; do \
+      rm -rf "models/$d" && ln -s "/runpod-volume/models/$d" "models/$d" || exit 1; \
+    done
+
 # The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
 # lines; transitive deps can still silently overwrite LayerStyle's
 # opencv-contrib-python build regardless of filtering. Reinstall contrib as
