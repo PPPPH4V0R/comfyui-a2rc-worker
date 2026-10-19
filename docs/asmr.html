@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ASMR 翻译</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2129; --muted: #6b7280; --line: #e5e7eb; --accent: #4f6bed; --hl: #eef2ff; --err: #d33; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111318; --card: #1b1e25; --text: #e6e8ec; --muted: #9aa1ad; --line: #2c313b; --accent: #7d93ff; --hl: #262c40; --err: #ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 4px 0 12px; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .hint { color: var(--muted); font-size: .88rem; }
+  label.file { display: block; border: 2px dashed var(--line); border-radius: 10px; padding: 22px 12px; text-align: center; cursor: pointer; }
+  label.file input { display: none; }
+  select, button { font: inherit; }
+  select { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  button { border: 0; border-radius: 10px; padding: 12px 16px; background: var(--accent); color: #fff; width: 100%; font-weight: 600; }
+  button:disabled { opacity: .5; }
+  button.small { width: auto; padding: 6px 12px; font-weight: 500; margin: 4px 4px 0 0; }
+  progress { width: 100%; height: 10px; }
+  .error { color: var(--err); }
+  audio { width: 100%; margin: 6px 0; }
+  #lines { max-height: 55vh; overflow-y: auto; border-top: 1px solid var(--line); margin-top: 8px; }
+  .line { display: flex; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .line .t { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; font-size: .85rem; padding-top: 2px; }
+  .line.on { background: var(--hl); }
+  #history .item { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<main>
+<h1>ASMR 翻译（日 → 中）</h1>
+<p class="hint">选一个日语音声或视频，上传到云端用"海南鸡 v2"模型听写并翻译成中文字幕。结果可以边听边看，也能下载 srt / vtt / lrc。<a href="./">← 回首页</a></p>
+
+<div class="card">
+  <label class="file" id="pick"><input type="file" id="file" accept="audio/*,video/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.mp4,.mkv"><span id="pickText">点这里选择音频 / 视频文件</span></label>
+  <p class="hint" style="margin:10px 0 4px">听不清的轻声多不多？</p>
+  <select id="vad">
+    <option value="0.5">标准（正常说话）</option>
+    <option value="0.4" selected>悄悄话较多（推荐 ASMR）</option>
+    <option value="0.35">几乎全是很轻的气声（可能多出几句没说过的话）</option>
+  </select>
+  <p class="hint" id="estimate"></p>
+  <button id="go" disabled>开始翻译</button>
+  <div id="progressBox" style="display:none;margin-top:10px">
+    <progress id="bar" max="100" value="0"></progress>
+    <div id="status" class="hint"></div>
+  </div>
+</div>
+
+<div class="card" id="result" style="display:none">
+  <div id="resultTitle" style="font-weight:600"></div>
+  <audio id="player" controls></audio>
+  <div id="downloads"></div>
+  <div id="lines"></div>
+</div>
+
+<div class="card">
+  <div style="font-weight:600">最近的结果</div>
+  <p class="hint">只存在这台手机的浏览器里，最多 10 条。</p>
+  <div id="history"></div>
+</div>
+</main>
+
+<script>
+const API_BASE = "https://a2rc-proxy.368014021.workers.dev";
+const CHUNK = 6000000;  // bytes per upload piece; base64 keeps each job under Runpod's 10 MB payload cap
+const HISTORY_KEY = 'asmrHistory';
+const $ = id => document.getElementById(id);
+let file = null, timer = null, cues = [];
+
+$('file').onchange = () => {
+  file = $('file').files[0] || null;
+  $('go').disabled = !file;
+  if (!file) return;
+  $('pickText').textContent = `${file.name}（${(file.size / 1e6).toFixed(1)} MB）`;
+  const pieces = Math.ceil(file.size / CHUNK);
+  $('estimate').textContent = `要分 ${pieces} 次上传。一小时音频的翻译大约 3–8 分钟，费用约 $0.03–0.08；第一次用要冷启动，会多等几分钟。`;
+};
+
+function setStatus(text, pct) {
+  $('progressBox').style.display = 'block';
+  $('status').textContent = text;
+  if (pct !== undefined) $('bar').value = pct;
+}
+
+async function post(input) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      const r = await fetch(API_BASE + '/asmr/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }) });
+      if (r.ok) return await r.json();
+    } catch (e) { }
+    await new Promise(res => setTimeout(res, 3000 * (attempt + 1)));
+  }
+  throw new Error('网络不稳定，提交失败');
+}
+
+async function waitJob(id, onTick) {
+  const started = Date.now();
+  for (;;) {
+    await new Promise(res => setTimeout(res, 4000));
+    let d;
+    try { d = await (await fetch(API_BASE + '/asmr/status/' + id)).json(); } catch (e) { continue; }
+    if (d.status === 'COMPLETED') return d.output;
+    if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(d.status)) throw new Error(typeof d.error === 'string' ? d.error : d.status);
+    onTick && onTick(d.status, Math.floor((Date.now() - started) / 1000));
+  }
+}
+
+const toBase64 = blob => new Promise((res, rej) => {
+  const fr = new FileReader();
+  fr.onload = () => res(fr.result.split(',')[1]);
+  fr.onerror = rej;
+  fr.readAsDataURL(blob);
+});
+
+$('go').onclick = async () => {
+  if (!file) return;
+  $('go').disabled = true;
+  const uploadId = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+  const pieces = Math.ceil(file.size / CHUNK);
+  try {
+    for (let i = 0; i < pieces; i++) {
+      setStatus(`上传中 ${i + 1} / ${pieces}…${i === 0 ? '（第一块要等服务器启动，可能一两分钟）' : ''}`, (i / pieces) * 50);
+      const data = await toBase64(file.slice(i * CHUNK, (i + 1) * CHUNK));
+      const job = await post({ action: 'put_chunk', upload_id: uploadId, index: i, data });
+      const out = await waitJob(job.id);
+      if (!out || !out.ok) throw new Error((out && out.error) || '上传失败');
+    }
+    setStatus('上传完成，开始听写和翻译…', 50);
+    const job = await post({ action: 'transcribe', upload_id: uploadId, filename: file.name, vad_threshold: parseFloat($('vad').value) });
+    const out = await waitJob(job.id, (st, s) => setStatus(`${st === 'IN_QUEUE' ? '排队 / 启动中' : '翻译中'}…（已等 ${Math.floor(s / 60)} 分 ${s % 60} 秒）`, 60));
+    if (!out || !out.subtitles) throw new Error((out && out.error) || '没拿到字幕');
+    setStatus(`完成！用时 ${out.seconds || '?'} 秒`, 100);
+    saveHistory(file.name, out.subtitles);
+    showResult(file.name, out.subtitles, URL.createObjectURL(file));
+  } catch (e) {
+    setStatus('');
+    $('status').innerHTML = '<span class="error">出错了：' + e.message + '</span>';
+  }
+  $('go').disabled = false;
+};
+
+function parseSrt(text) {
+  const toSec = t => { const [h, m, s] = t.replace(',', '.').split(':'); return +h * 3600 + +m * 60 + parseFloat(s); };
+  return text.replace(/\r/g, '').split(/\n\n+/).map(block => {
+    const lines = block.trim().split('\n');
+    const i = lines.findIndex(l => l.includes('-->'));
+    if (i < 0) return null;
+    const [a, b] = lines[i].split('-->').map(s => toSec(s.trim()));
+    return { start: a, end: b, text: lines.slice(i + 1).join(' ') };
+  }).filter(Boolean);
+}
+
+const fmt = s => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+function showResult(name, subs, audioUrl) {
+  $('result').style.display = 'block';
+  $('resultTitle').textContent = name;
+  const player = $('player');
+  player.style.display = audioUrl ? 'block' : 'none';
+  if (audioUrl) player.src = audioUrl;
+  $('downloads').innerHTML = '';
+  for (const [ext, text] of Object.entries(subs)) {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+    a.download = name.replace(/\.[^.]+$/, '') + '.' + ext;
+    a.innerHTML = `<button class="small">下载 .${ext}</button>`;
+    $('downloads').append(a);
+  }
+  cues = parseSrt(subs.srt || '');
+  const box = $('lines');
+  box.innerHTML = '';
+  cues.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'line';
+    row.innerHTML = `<span class="t">${fmt(c.start)}</span><span></span>`;
+    row.lastChild.textContent = c.text;
+    row.onclick = () => { if (audioUrl) { player.currentTime = c.start; player.play(); } };
+    c.el = row;
+    box.append(row);
+  });
+  $('result').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('player').ontimeupdate = () => {
+  const t = $('player').currentTime;
+  for (const c of cues) {
+    const on = t >= c.start && t < c.end;
+    if (on && !c.el.classList.contains('on')) c.el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    c.el.classList.toggle('on', on);
+  }
+};
+
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { return []; } }
+function saveHistory(name, subs) {
+  const h = loadHistory().filter(x => x.name !== name);
+  h.unshift({ name, at: Date.now(), subs });
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(h.slice(0, 10))); } catch (e) { }
+  renderHistory();
+}
+function renderHistory() {
+  const h = loadHistory();
+  $('history').innerHTML = h.length ? '' : '<p class="hint">还没有。</p>';
+  h.forEach(x => {
+    const row = document.createElement('div');
+    row.className = 'item';
+    row.innerHTML = `<span></span><button class="small">打开</button>`;
+    row.firstChild.textContent = `${x.name} · ${new Date(x.at).toLocaleString()}`;
+    row.lastChild.onclick = () => {
+      // Audio isn't stored; pick the same file again above to play along.
+      showResult(x.name, x.subs, file && file.name === x.name ? URL.createObjectURL(file) : null);
+    };
+    $('history').append(row);
+  });
+}
+renderHistory();
+</script>
+</body>
+</html>
