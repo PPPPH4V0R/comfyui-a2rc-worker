@@ -2,7 +2,8 @@
 # Runs TransWithAI's Faster-Whisper-TransWithAI-ChickenRice (MIT) unchanged; its
 # "海南鸡 v2" CTranslate2 model, ASMR VAD and whisper-base feature extractor live
 # on the network volume (models/asmr_chickenrice), so the image stays small.
-FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04
+# CUDA 12.4: the US-WA-1 hosts (where the network volume lives) run drivers that cap at 12.6.
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive PIP_BREAK_SYSTEM_PACKAGES=1 PYTHONUNBUFFERED=1
 
