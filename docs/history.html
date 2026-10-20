@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生成历史</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --text: #1d2129; --muted: #6b7280; --line: #e5e7eb; --accent: #4f6bed; --err: #d33; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111318; --card: #1b1e25; --text: #e6e8ec; --muted: #9aa1ad; --line: #2c313b; --accent: #7d93ff; --err: #ff6b6b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 4px 0 8px; }
+  a { color: var(--accent); }
+  .hint { color: var(--muted); font-size: .88rem; }
+  .error { color: var(--err); }
+  button { font: inherit; border: 0; border-radius: 10px; padding: 8px 14px; background: var(--accent); color: #fff; }
+  button:disabled { opacity: .5; }
+  .job { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; }
+  .job .head { display: flex; justify-content: space-between; gap: 8px; font-size: .9rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; margin-top: 8px; }
+  .tile { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--bg); aspect-ratio: 1; display: flex; align-items: center; justify-content: center; font-size: .8rem; color: var(--muted); }
+  .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #viewer { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+  #viewer img, #viewer video { max-width: 100%; max-height: 80vh; border-radius: 6px; }
+  #viewer .bar { margin-top: 10px; display: flex; gap: 8px; }
+  #viewer .bar a button { background: #fff; color: #111; }
+</style>
+</head>
+<body>
+<main>
+<h1>生成历史</h1>
+<p class="hint">网站上所有工作流的生成结果都会在服务器上保留 7 天，关掉页面、换手机也能在这里找回。<a href="./">← 回首页</a></p>
+<p><button id="reload">刷新</button> <span id="status" class="hint"></span></p>
+<div id="jobs"></div>
+</main>
+
+<div id="viewer">
+  <div id="viewerBody"></div>
+  <div class="bar"><a id="viewerSave"><button>下载</button></a><button id="viewerClose">关闭</button></div>
+</div>
+
+<script>
+const API_BASE = "https://a2rc-proxy.368014021.workers.dev";
+const LABELS = { wf16: '16 号工作流', qwen_edit: 'Qwen 编辑', krea2_ostris: 'Krea2 编辑', krea2_aio_yuri: 'Krea2 AIO', wan22_i2v: '图生视频' };
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', mp4: 'video/mp4', webm: 'video/webm', flac: 'audio/flac', mp3: 'audio/mpeg', wav: 'audio/wav' };
+const $ = id => document.getElementById(id);
+
+// One call to the model-downloader (via the proxy): submit, then poll until it finishes.
+async function call(input, onWait) {
+  const r = await fetch(API_BASE + '/history/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }) });
+  if (!r.ok) throw new Error(r.status === 404 ? '代理还没更新（需要重新粘贴 cloudflare-worker.js）' : 'HTTP ' + r.status);
+  const job = await r.json();
+  if (!job.id) throw new Error(job.error || '提交失败');
+  const started = Date.now();
+  for (;;) {
+    await new Promise(res => setTimeout(res, 2000));
+    let d;
+    try { d = await (await fetch(API_BASE + '/history/status/' + job.id)).json(); } catch (e) { continue; }
+    if (d.status === 'COMPLETED') {
+      if (d.output && d.output.error) throw new Error(d.output.error);
+      return d.output;
+    }
+    if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(d.status)) throw new Error(d.error || d.status);
+    onWait && onWait(Math.floor((Date.now() - started) / 1000));
+  }
+}
+
+async function load() {
+  $('reload').disabled = true;
+  $('status').textContent = '读取中…（服务器冷启动要等十几秒）';
+  try {
+    const out = await call({ action: 'history_list', limit: 60 }, s => { $('status').textContent = `读取中…（${s} 秒）`; });
+    render(out.jobs || []);
+    $('status').textContent = `共 ${(out.jobs || []).length} 次生成`;
+  } catch (e) {
+    $('status').innerHTML = '<span class="error">读取失败：' + e.message + '</span>';
+  }
+  $('reload').disabled = false;
+}
+
+function render(jobs) {
+  const box = $('jobs');
+  box.innerHTML = jobs.length ? '' : '<p class="hint">最近 7 天还没有生成记录。</p>';
+  for (const job of jobs) {
+    const card = document.createElement('div');
+    card.className = 'job';
+    const when = new Date(job.time * 1000).toLocaleString();
+    card.innerHTML = `<div class="head"><b></b><span class="hint"></span></div><div class="grid"></div>`;
+    card.querySelector('b').textContent = LABELS[job.label] || job.label || '未标注';
+    card.querySelector('.hint').textContent = `${when} · ${job.files.length} 个文件`;
+    for (const f of job.files) {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      if (f.thumb_data) tile.innerHTML = `<img src="data:image/jpeg;base64,${f.thumb_data}" alt="">`;
+      else tile.textContent = f.name.split('.').pop().toUpperCase() + ' · ' + (f.size / 1e6).toFixed(1) + ' MB';
+      tile.onclick = () => openFile(job.dir + '/' + f.name, f);
+      card.querySelector('.grid').append(tile);
+    }
+    box.append(card);
+  }
+}
+
+async function openFile(path, f) {
+  $('status').textContent = '下载原图中…';
+  try {
+    const parts = [];
+    for (let offset = 0, eof = false; !eof;) {
+      const out = await call({ action: 'read_file', path, offset });
+      parts.push(Uint8Array.from(atob(out.data), c => c.charCodeAt(0)));
+      offset += parts[parts.length - 1].length;
+      eof = out.eof;
+      $('status').textContent = `下载原图中… ${(offset / 1e6).toFixed(1)} / ${(out.size / 1e6).toFixed(1)} MB`;
+    }
+    const ext = f.name.split('.').pop().toLowerCase();
+    const url = URL.createObjectURL(new Blob(parts, { type: MIME[ext] || 'application/octet-stream' }));
+    const body = $('viewerBody');
+    body.innerHTML = '';
+    const el = document.createElement(ext === 'mp4' || ext === 'webm' ? 'video' : ['mp3', 'wav', 'flac'].includes(ext) ? 'audio' : 'img');
+    el.src = url;
+    if (el.tagName !== 'IMG') el.controls = true;
+    body.append(el);
+    $('viewerSave').href = url;
+    $('viewerSave').download = f.name.replace(/^\d+_/, '');
+    $('viewer').style.display = 'flex';
+    $('status').textContent = '';
+  } catch (e) {
+    $('status').innerHTML = '<span class="error">下载失败：' + e.message + '</span>';
+  }
+}
+
+$('viewerClose').onclick = () => { $('viewer').style.display = 'none'; $('viewerBody').innerHTML = ''; };
+$('reload').onclick = load;
+load();
+</script>
+</body>
+</html>

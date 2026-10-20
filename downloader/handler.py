@@ -1,3 +1,5 @@
+import base64
+import glob
 import json
 import os
 import re
@@ -7,6 +9,8 @@ import urllib.parse
 import urllib.request
 
 import runpod
+
+HISTORY_DIR = "/runpod-volume/outputs"
 
 
 def normalize_url(url):
@@ -90,6 +94,39 @@ def handler(job):
                         names.append(os.path.relpath(os.path.join(dirpath, f), base).replace(os.sep, "/"))
             out[folder] = sorted(names)
         return out
+
+    if action == "history_list":
+        # Recent jobs saved by the ComfyUI worker (patch_handler_history.py), newest first,
+        # with their thumbnails inline so the history page needs one call to draw.
+        jobs = []
+        for meta_path in glob.glob(os.path.join(HISTORY_DIR, "*", "*", "meta.json")):
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+            except (OSError, ValueError):
+                continue
+            folder = os.path.dirname(meta_path)
+            meta["dir"] = os.path.relpath(folder, HISTORY_DIR).replace(os.sep, "/")
+            for item in meta.get("files", []):
+                thumb = item.get("thumb") and os.path.join(folder, item["thumb"])
+                if thumb and os.path.exists(thumb):
+                    with open(thumb, "rb") as f:
+                        item["thumb_data"] = base64.b64encode(f.read()).decode()
+            jobs.append(meta)
+        jobs.sort(key=lambda m: m.get("time", 0), reverse=True)
+        return {"jobs": jobs[: int(inp.get("limit", 40))]}
+
+    if action == "read_file":
+        # One piece of a saved output file (pieces keep each job result under Runpod's size cap).
+        path = os.path.realpath(os.path.join(HISTORY_DIR, inp["path"]))
+        if not path.startswith(os.path.realpath(HISTORY_DIR) + os.sep) or not os.path.isfile(path):
+            return {"error": "file not found"}
+        offset, length = int(inp.get("offset", 0)), min(int(inp.get("length", 8_000_000)), 8_000_000)
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            f.seek(offset)
+            data = f.read(length)
+        return {"data": base64.b64encode(data).decode(), "size": size, "eof": offset + len(data) >= size}
 
     if action == "diskfree":
         total, used, free = shutil.disk_usage(inp.get("path", "/runpod-volume"))

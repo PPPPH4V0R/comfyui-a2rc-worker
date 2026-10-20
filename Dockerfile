@@ -262,6 +262,11 @@ RUN python3 /tmp/patch_handler_payload.py
 COPY patches/patch_handler_stream.py /tmp/patch_handler_stream.py
 RUN python3 /tmp/patch_handler_stream.py
 
+# Keep every job's outputs on the volume for 7 days so a closed tab doesn't lose
+# them; the history page reads them back. See patches/patch_handler_history.py.
+COPY patches/patch_handler_history.py /tmp/patch_handler_history.py
+RUN python3 /tmp/patch_handler_history.py
+
 # InstantCharacter (Tencent Hunyuan) -- whole-character (face + hairstyle +
 # outfit) consistency for the "角色定型图集" tool, replacing the Krea2 AIO
 # Yuri identity-edit path there: live testing showed Krea2's ref_boost-tuned
