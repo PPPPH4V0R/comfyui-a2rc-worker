@@ -36,7 +36,7 @@
 <body>
 <main>
 <h1>ASMR 翻译（日 → 中）</h1>
-<p class="hint">选一个日语音声或视频，上传到云端用"海南鸡 v2"模型听写并翻译成中文字幕。结果可以边听边看，也能下载 srt / vtt / lrc。<a href="./">← 回首页</a> · <a href="history.html">生成历史</a></p>
+<p class="hint">选一个日语音声或视频，上传到云端用"海南鸡 v2"模型听写并翻译成中文字幕。结果可以边听边看，也能下载 srt / vtt / lrc。<a href="./">← 回首页</a></p>
 
 <div class="card">
   <label class="file" id="pick"><input type="file" id="file" accept="audio/*,video/*,.mp3,.wav,.flac,.m4a,.ogg,.opus,.mp4,.mkv"><span id="pickText">点这里选择音频 / 视频文件</span></label>
@@ -225,7 +225,7 @@ function renderHistory() {
 renderHistory();
 
 // A translation that was still running when the page closed: pick it up again on reopen.
-// Runpod keeps the result ~30 minutes; after that the subtitles are in 生成历史 (history.html).
+// Runpod keeps the result ~30 minutes; after that the .srt is in the owner's Telegram chat.
 function setPending(p) { try { p ? localStorage.setItem('asmrPending', JSON.stringify(p)) : localStorage.removeItem('asmrPending'); } catch (e) { } }
 (async function resume() {
   let p = null;
@@ -234,14 +234,14 @@ function setPending(p) { try { p ? localStorage.setItem('asmrPending', JSON.stri
   setStatus(`接着取上次的翻译：${p.name}…`, 60);
   try {
     const r = await fetch(API_BASE + '/asmr/status/' + p.id);
-    if (r.status === 404) throw new Error('结果已过期，去「生成历史」里找');
+    if (r.status === 404) throw new Error('结果已过期，字幕文件已发到你的 Telegram');
     const out = await waitJob(p.id, (st, s) => setStatus(`接着取上次的翻译：${p.name}（${st === 'IN_QUEUE' ? '排队中' : '翻译中'}）`, 60));
     if (!out || !out.subtitles) throw new Error((out && out.error) || '没拿到字幕');
     setStatus('上次的翻译已取回', 100);
     saveHistory(p.name, out.subtitles);
     showResult(p.name, out.subtitles, null);
   } catch (e) {
-    $('status').innerHTML = '<span class="error">' + e.message + '</span> <a href="history.html">生成历史</a>';
+    $('status').innerHTML = '<span class="error">' + e.message + '</span>';
   }
   setPending(null);
 })();

@@ -262,10 +262,11 @@ RUN python3 /tmp/patch_handler_payload.py
 COPY patches/patch_handler_stream.py /tmp/patch_handler_stream.py
 RUN python3 /tmp/patch_handler_stream.py
 
-# Keep every job's outputs on the volume for 7 days so a closed tab doesn't lose
-# them; the history page reads them back. See patches/patch_handler_history.py.
-COPY patches/patch_handler_history.py /tmp/patch_handler_history.py
-RUN python3 /tmp/patch_handler_history.py
+# Send every job's outputs to the owner's Telegram chat (when TELEGRAM_BOT_TOKEN /
+# TELEGRAM_CHAT_ID are set on the endpoint), so a closed tab doesn't lose them.
+# See patches/patch_handler_telegram.py.
+COPY patches/patch_handler_telegram.py /tmp/patch_handler_telegram.py
+RUN python3 /tmp/patch_handler_telegram.py
 
 # InstantCharacter (Tencent Hunyuan) -- whole-character (face + hairstyle +
 # outfit) consistency for the "角色定型图集" tool, replacing the Krea2 AIO

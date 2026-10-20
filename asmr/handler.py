@@ -8,17 +8,16 @@ Pieces are kept on the network volume and deleted once transcribed (or after a d
 """
 import base64
 import glob
-import json
 import os
 import re
 import shutil
 import subprocess
 import time
 
+import requests
 import runpod
 
 UPLOADS = "/runpod-volume/asmr_uploads"
-HISTORY_DIR = "/runpod-volume/outputs"  # shared with the ComfyUI worker; the history page lists it
 UPLOAD_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 SUFFIXES = "mp3,wav,flac,m4a,aac,ogg,opus,wma,mp4,mkv,avi,mov,webm,flv,wmv"
 
@@ -65,22 +64,17 @@ def transcribe(folder, inp):
     return {"subtitles": subs, "seconds": round(time.time() - start)}
 
 
-def save_history(job_id, name, subs):
-    """Keep the subtitles next to the image history so a closed page can still find them."""
+def send_telegram(name, subs):
+    """Send the .srt to the owner's Telegram chat when TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are set."""
+    token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not chat or not subs.get("srt"):
+        return
     try:
-        folder = os.path.join(HISTORY_DIR, time.strftime("%Y-%m-%d", time.gmtime()), re.sub(r"[^A-Za-z0-9_-]", "", job_id))
-        os.makedirs(folder, exist_ok=True)
         stem = os.path.splitext(name)[0]
-        files = []
-        for fmt, text in subs.items():
-            data = text.encode("utf-8")
-            with open(os.path.join(folder, f"{stem}.{fmt}"), "wb") as f:
-                f.write(data)
-            files.append({"name": f"{stem}.{fmt}", "size": len(data), "thumb": None})
-        with open(os.path.join(folder, "meta.json"), "w", encoding="utf-8") as f:
-            json.dump({"id": job_id, "time": time.time(), "label": "asmr", "files": files}, f, ensure_ascii=False)
+        requests.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat, "caption": f"ASMR 翻译 · {name}"},
+                      files={"document": (f"{stem}.srt", subs["srt"].encode("utf-8"))}, timeout=60)
     except Exception as e:
-        print("saving subtitles to history failed:", e)
+        print("sending subtitles to Telegram failed:", e)
 
 
 def handler(job):
@@ -102,7 +96,7 @@ def handler(job):
         try:
             out = transcribe(folder, inp)
             if out.get("subtitles"):
-                save_history(job.get("id") or uid, inp.get("filename") or "audio", out["subtitles"])
+                send_telegram(inp.get("filename") or "audio", out["subtitles"])
             return out
         finally:
             shutil.rmtree(folder, ignore_errors=True)
