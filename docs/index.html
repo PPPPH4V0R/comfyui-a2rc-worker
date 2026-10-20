@@ -36,7 +36,7 @@
 </head>
 <body>
 <h1>ComfyUI 工作流</h1>
-<p class="hint" id="wfPages">更多工作流：<a href="wf16.html">16 号工作流（动漫 / Cosplay / 放大）</a> · <a href="asmr.html">ASMR 翻译（日→中字幕）</a> · <!--WORKFLOW_PAGES--></p>
+<p class="hint" id="wfPages">更多工作流：<a href="wf16.html">16 号工作流（动漫 / Cosplay / 放大）</a> · <a href="asmr.html">ASMR 翻译（日→中字幕）</a> · <a href="history.html">生成历史（7 天）</a> · <!--WORKFLOW_PAGES--></p>
 
 <div class="row">
   <label>选择工作流</label>
@@ -752,7 +752,7 @@ submitEl.onclick = async () => {
     return;
   }
 
-  const payload = { input: { workflow, images } };
+  const payload = { input: { workflow, images, history_label: wfId } };
   const headers = { "Content-Type": "application/json" };
 
   statusEl.textContent = '提交任务中…';
@@ -768,87 +768,119 @@ submitEl.onclick = async () => {
     return;
   }
 
-  statusEl.textContent = '排队/冷启动中，第一次调用可能要 1-2 分钟…';
-  let pollFailCount = 0;
-  let pollPaused = false;
-  let pollTimer = null;
+  addPending({ id: jobId, at: Date.now() });
+  watchJob(jobId, statusEl, resultEl, () => { submitEl.disabled = false; });
+};
 
-  // Mobile browsers throttle/suspend fetches and timers while the tab is
-  // backgrounded or the screen is locked -- that alone used to trip the
-  // "network fluctuation" message on nearly every lock/unlock. Pause polling
-  // while hidden and resume immediately (without alarming the user) when the
-  // page becomes visible again, instead of letting those blips count as
-  // real network failures.
-  const onVisibilityChange = () => {
-    if (document.hidden) {
-      pollPaused = true;
-      if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-    } else if (pollPaused) {
-      pollPaused = false;
-      poll();
-    }
-  };
-  document.addEventListener('visibilitychange', onVisibilityChange);
+// Follows one job until it finishes and shows its result in resultEl. Used right after submitting,
+// and again when the page is reopened while a job was still out (their ids are kept in localStorage).
+function watchJob(jobId, statusEl, resultEl, onDone) {
+  const headers = { "Content-Type": "application/json" };
+    statusEl.textContent = '排队/冷启动中，第一次调用可能要 1-2 分钟…';
+    let pollFailCount = 0;
+    let pollPaused = false;
+    let pollTimer = null;
 
-  const poll = async () => {
-    if (document.hidden) { pollPaused = true; return; }
-    let data;
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
-      const r = await fetch(API_BASE + "/status/" + jobId, { headers, signal: controller.signal });
-      clearTimeout(timeoutId);
-      data = await r.json();
-      pollFailCount = 0;
-    } catch (e) {
-      pollFailCount++;
-      // A single blip is common (especially right after unlocking the
-      // phone) and usually self-corrects on the very next try -- only
-      // surface a message once it's actually persisted.
-      if (pollFailCount >= 2) {
-        statusEl.textContent = '网络波动，继续重试…（第 ' + pollFailCount + ' 次）';
+    // Mobile browsers throttle/suspend fetches and timers while the tab is
+    // backgrounded or the screen is locked -- that alone used to trip the
+    // "network fluctuation" message on nearly every lock/unlock. Pause polling
+    // while hidden and resume immediately (without alarming the user) when the
+    // page becomes visible again, instead of letting those blips count as
+    // real network failures.
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        pollPaused = true;
+        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+      } else if (pollPaused) {
+        pollPaused = false;
+        poll();
       }
-      const delay = Math.min(4000 + (pollFailCount - 1) * 2000, 15000);
-      pollTimer = setTimeout(poll, delay);
-      return;
-    }
-    if (data.status === 'COMPLETED') {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      // The worker's handler is a generator, so /status output arrives as [result].
-      const out = Array.isArray(data.output) ? data.output[0] : data.output;
-      const img = (out && out.images && out.images[0]);
-      if (!img) {
-        statusEl.innerHTML = '<span class="error">完成但没有返回图片</span>';
-        submitEl.disabled = false;
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    const poll = async () => {
+      if (document.hidden) { pollPaused = true; return; }
+      let data;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        const r = await fetch(API_BASE + "/status/" + jobId, { headers, signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (r.status === 404) {
+          document.removeEventListener('visibilitychange', onVisibilityChange);
+          statusEl.innerHTML = '<span class="error">这个任务的结果已经过期了，去<a href="history.html">生成历史</a>里找</span>';
+          removePending(jobId); onDone && onDone();
+          return;
+        }
+        data = await r.json();
+        pollFailCount = 0;
+      } catch (e) {
+        pollFailCount++;
+        // A single blip is common (especially right after unlocking the
+        // phone) and usually self-corrects on the very next try -- only
+        // surface a message once it's actually persisted.
+        if (pollFailCount >= 2) {
+          statusEl.textContent = '网络波动，继续重试…（第 ' + pollFailCount + ' 次）';
+        }
+        const delay = Math.min(4000 + (pollFailCount - 1) * 2000, 15000);
+        pollTimer = setTimeout(poll, delay);
         return;
       }
-      statusEl.textContent = '完成！';
-      const ext = (img.filename.split('.').pop() || 'png').toLowerCase();
-      const videoExts = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
-      const audioExts = { flac: 'audio/flac', mp3: 'audio/mpeg', wav: 'audio/wav', opus: 'audio/opus' };
-      if (videoExts[ext]) {
-        const dataUrl = 'data:' + videoExts[ext] + ';base64,' + img.data;
-        resultEl.innerHTML = '<video src="' + dataUrl + '" controls autoplay loop playsinline style="max-width:100%;border-radius:8px;margin-top:10px"></video><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
-      } else if (audioExts[ext]) {
-        const dataUrl = 'data:' + audioExts[ext] + ';base64,' + img.data;
-        resultEl.innerHTML = '<audio src="' + dataUrl + '" controls autoplay style="width:100%;margin-top:10px"></audio><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
+      if (data.status === 'COMPLETED') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        // The worker's handler is a generator, so /status output arrives as [result].
+        const out = Array.isArray(data.output) ? data.output[0] : data.output;
+        const img = (out && out.images && out.images[0]);
+        if (!img) {
+          statusEl.innerHTML = '<span class="error">完成但没有返回图片</span>';
+          removePending(jobId); onDone && onDone();
+          return;
+        }
+        statusEl.textContent = '完成！';
+        const ext = (img.filename.split('.').pop() || 'png').toLowerCase();
+        const videoExts = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime' };
+        const audioExts = { flac: 'audio/flac', mp3: 'audio/mpeg', wav: 'audio/wav', opus: 'audio/opus' };
+        if (videoExts[ext]) {
+          const dataUrl = 'data:' + videoExts[ext] + ';base64,' + img.data;
+          resultEl.innerHTML = '<video src="' + dataUrl + '" controls autoplay loop playsinline style="max-width:100%;border-radius:8px;margin-top:10px"></video><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
+        } else if (audioExts[ext]) {
+          const dataUrl = 'data:' + audioExts[ext] + ';base64,' + img.data;
+          resultEl.innerHTML = '<audio src="' + dataUrl + '" controls autoplay style="width:100%;margin-top:10px"></audio><br><a href="' + dataUrl + '" download="result.' + ext + '">下载结果</a>';
+        } else {
+          const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+          const dataUrl = 'data:' + mime + ';base64,' + img.data;
+          resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.' + (mime === 'image/png' ? 'png' : ext) + '">下载结果</a>';
+        }
+        removePending(jobId); onDone && onDone();
+      } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+        statusEl.innerHTML = '<span class="error">失败: ' + (data.error || data.status) + '</span>';
+        removePending(jobId); onDone && onDone();
       } else {
-        const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
-        const dataUrl = 'data:' + mime + ';base64,' + img.data;
-        resultEl.innerHTML = '<img src="' + dataUrl + '"><br><a href="' + dataUrl + '" download="result.' + (mime === 'image/png' ? 'png' : ext) + '">下载结果</a>';
+        statusEl.textContent = '状态: ' + data.status + ' …';
+        pollTimer = setTimeout(poll, 3000);
       }
-      submitEl.disabled = false;
-    } else if (data.status === 'FAILED' || data.status === 'CANCELLED' || data.status === 'TIMED_OUT') {
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      statusEl.innerHTML = '<span class="error">失败: ' + (data.error || data.status) + '</span>';
-      submitEl.disabled = false;
-    } else {
-      statusEl.textContent = '状态: ' + data.status + ' …';
-      pollTimer = setTimeout(poll, 3000);
-    }
-  };
-  poll();
-};
+    };
+    poll();
+}
+
+const PENDING_KEY = 'pendingJobs:' + location.pathname;
+function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) { return []; } }
+function savePending(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch (e) { } }
+function addPending(job) { savePending([...loadPending().filter(j => j.id !== job.id), job]); }
+function removePending(id) { savePending(loadPending().filter(j => j.id !== id)); }
+(function resumePending() {
+  const list = loadPending().filter(j => Date.now() - j.at < 24 * 3600 * 1000);
+  savePending(list);
+  const anchor = document.getElementById('status');
+  for (const j of list) {
+    const box = document.createElement('div');
+    box.innerHTML = '<p class="hint"></p><div class="hint"></div><div></div>';
+    box.firstChild.textContent = `上次还没取回的任务（${new Date(j.at).toLocaleString()} 提交）`;
+    anchor.parentNode.insertBefore(box, anchor);
+    watchJob(j.id, box.children[1], box.children[2]);
+  }
+})();
 </script>
 </body>
 </html>
