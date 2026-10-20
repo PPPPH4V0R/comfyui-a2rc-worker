@@ -8,6 +8,7 @@ Pieces are kept on the network volume and deleted once transcribed (or after a d
 """
 import base64
 import glob
+import json
 import os
 import re
 import shutil
@@ -17,6 +18,7 @@ import time
 import runpod
 
 UPLOADS = "/runpod-volume/asmr_uploads"
+HISTORY_DIR = "/runpod-volume/outputs"  # shared with the ComfyUI worker; the history page lists it
 UPLOAD_ID = re.compile(r"^[A-Za-z0-9_-]{8,64}$")
 SUFFIXES = "mp3,wav,flac,m4a,aac,ogg,opus,wma,mp4,mkv,avi,mov,webm,flv,wmv"
 
@@ -63,6 +65,24 @@ def transcribe(folder, inp):
     return {"subtitles": subs, "seconds": round(time.time() - start)}
 
 
+def save_history(job_id, name, subs):
+    """Keep the subtitles next to the image history so a closed page can still find them."""
+    try:
+        folder = os.path.join(HISTORY_DIR, time.strftime("%Y-%m-%d", time.gmtime()), re.sub(r"[^A-Za-z0-9_-]", "", job_id))
+        os.makedirs(folder, exist_ok=True)
+        stem = os.path.splitext(name)[0]
+        files = []
+        for fmt, text in subs.items():
+            data = text.encode("utf-8")
+            with open(os.path.join(folder, f"{stem}.{fmt}"), "wb") as f:
+                f.write(data)
+            files.append({"name": f"{stem}.{fmt}", "size": len(data), "thumb": None})
+        with open(os.path.join(folder, "meta.json"), "w", encoding="utf-8") as f:
+            json.dump({"id": job_id, "time": time.time(), "label": "asmr", "files": files}, f, ensure_ascii=False)
+    except Exception as e:
+        print("saving subtitles to history failed:", e)
+
+
 def handler(job):
     inp = job["input"]
     uid = str(inp.get("upload_id", ""))
@@ -80,7 +100,10 @@ def handler(job):
     if inp.get("action") == "transcribe":
         clean_stale()
         try:
-            return transcribe(folder, inp)
+            out = transcribe(folder, inp)
+            if out.get("subtitles"):
+                save_history(job.get("id") or uid, inp.get("filename") or "audio", out["subtitles"])
+            return out
         finally:
             shutil.rmtree(folder, ignore_errors=True)
 

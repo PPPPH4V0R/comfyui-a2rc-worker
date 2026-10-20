@@ -44,8 +44,8 @@
 
 <script>
 const API_BASE = "https://a2rc-proxy.368014021.workers.dev";
-const LABELS = { wf16: '16 号工作流', qwen_edit: 'Qwen 编辑', krea2_ostris: 'Krea2 编辑', krea2_aio_yuri: 'Krea2 AIO', wan22_i2v: '图生视频' };
-const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', mp4: 'video/mp4', webm: 'video/webm', flac: 'audio/flac', mp3: 'audio/mpeg', wav: 'audio/wav' };
+const LABELS = { wf16: '16 号工作流', qwen_edit: 'Qwen 编辑', krea2_ostris: 'Krea2 编辑', krea2_aio_yuri: 'Krea2 AIO', wan22_i2v: '图生视频', asmr: 'ASMR 翻译' };
+const MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', mp4: 'video/mp4', webm: 'video/webm', flac: 'audio/flac', mp3: 'audio/mpeg', wav: 'audio/wav', srt: 'text/plain;charset=utf-8', vtt: 'text/plain;charset=utf-8', lrc: 'text/plain;charset=utf-8' };
 const $ = id => document.getElementById(id);
 
 // One call to the model-downloader (via the proxy): submit, then poll until it finishes.
@@ -118,9 +118,15 @@ async function openFile(path, f) {
     const url = URL.createObjectURL(new Blob(parts, { type: MIME[ext] || 'application/octet-stream' }));
     const body = $('viewerBody');
     body.innerHTML = '';
-    const el = document.createElement(ext === 'mp4' || ext === 'webm' ? 'video' : ['mp3', 'wav', 'flac'].includes(ext) ? 'audio' : 'img');
-    el.src = url;
-    if (el.tagName !== 'IMG') el.controls = true;
+    const isText = ['srt', 'vtt', 'lrc'].includes(ext);
+    const el = document.createElement(isText ? 'pre' : ext === 'mp4' || ext === 'webm' ? 'video' : ['mp3', 'wav', 'flac'].includes(ext) ? 'audio' : 'img');
+    if (isText) {
+      el.textContent = new TextDecoder().decode(await new Blob(parts).arrayBuffer());
+      el.style.cssText = 'background:#fff;color:#111;max-height:75vh;overflow:auto;padding:12px;border-radius:6px;white-space:pre-wrap;max-width:100%';
+    } else {
+      el.src = url;
+      if (el.tagName !== 'IMG') el.controls = true;
+    }
     body.append(el);
     $('viewerSave').href = url;
     $('viewerSave').download = f.name.replace(/^\d+_/, '');
