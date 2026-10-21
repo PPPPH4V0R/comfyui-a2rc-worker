@@ -202,6 +202,7 @@
 </div>
 
 <div class="row">
+  <input type="text" id="note" maxlength="300" placeholder="备注（可不填）：会和结果一起发到 Telegram，方便分辨是哪一次" style="width:100%;margin:10px 0 8px;padding:8px;box-sizing:border-box">
   <button id="submit" disabled>开始生成</button>
 </div>
 
@@ -752,7 +753,8 @@ submitEl.onclick = async () => {
     return;
   }
 
-  const payload = { input: { workflow, images, history_label: wfId } };
+  const note = document.getElementById('note').value.trim();
+  const payload = { input: { workflow, images, history_label: wfId, note } };
   const headers = { "Content-Type": "application/json" };
 
   statusEl.textContent = '提交任务中…';
@@ -768,7 +770,7 @@ submitEl.onclick = async () => {
     return;
   }
 
-  addPending({ id: jobId, at: Date.now() });
+  addPending({ id: jobId, at: Date.now(), note });
   watchJob(jobId, statusEl, resultEl, () => { submitEl.disabled = false; });
 };
 
@@ -876,7 +878,7 @@ function removePending(id) { savePending(loadPending().filter(j => j.id !== id))
   for (const j of list) {
     const box = document.createElement('div');
     box.innerHTML = '<p class="hint"></p><div class="hint"></div><div></div>';
-    box.firstChild.textContent = `上次还没取回的任务（${new Date(j.at).toLocaleString()} 提交）`;
+    box.firstChild.textContent = `上次还没取回的任务（${new Date(j.at).toLocaleString()} 提交${j.note ? '，备注：' + j.note : ''}）`;
     anchor.parentNode.insertBefore(box, anchor);
     watchJob(j.id, box.children[1], box.children[2]);
   }
