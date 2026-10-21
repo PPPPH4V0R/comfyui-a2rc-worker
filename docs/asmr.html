@@ -91,15 +91,27 @@ function setStatus(text, pct) {
   if (pct !== undefined) $('bar').value = pct;
 }
 
+// Setup problems (wrong key permission, old proxy) answer at once with 4xx and retrying can't fix
+// them, so say what's wrong; only real network errors and 429/5xx are retried.
+const SETUP_ERRORS = {
+  401: 'Cloudflare 代理里的 Runpod key 无效',
+  403: 'Cloudflare 代理里的 Runpod key 没有 asmr-translate 的权限（去 Runpod → Settings → API Keys 给它加上 Read/Write）',
+  404: 'Cloudflare 代理还没更新（重新粘贴 cloudflare-worker.js 并 Deploy）',
+};
 async function post(input) {
+  let last = '网络不稳定';
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const r = await fetch(API_BASE + '/asmr/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }) });
       if (r.ok) return await r.json();
-    } catch (e) { }
+      if (SETUP_ERRORS[r.status]) throw Object.assign(new Error(SETUP_ERRORS[r.status]), { fatal: true });
+      last = `服务器返回 ${r.status}`;
+    } catch (e) {
+      if (e.fatal) throw e;
+    }
     await new Promise(res => setTimeout(res, 3000 * (attempt + 1)));
   }
-  throw new Error('网络不稳定，提交失败');
+  throw new Error(last + '，提交失败');
 }
 
 async function waitJob(id, onTick) {
