@@ -95,16 +95,17 @@ def transcribe(folder, inp):
 
 
 def send_telegram(name, subs, note=""):
-    """Send the .srt to the owner's Telegram chat when TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID are set."""
+    """Send the .lrc (what the user plays along with) to the owner's Telegram chat when configured."""
     token, chat = os.environ.get("TELEGRAM_BOT_TOKEN"), os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat or not subs.get("srt"):
+    fmt = "lrc" if subs.get("lrc") else "srt"
+    if not token or not chat or not subs.get(fmt):
         return
     try:
         stem = os.path.splitext(name)[0]
         note = (note or "").strip()[:800]
         caption = (note + "\n" if note else "") + f"ASMR 翻译 · {name}"
         requests.post(f"https://api.telegram.org/bot{token}/sendDocument", data={"chat_id": chat, "caption": caption},
-                      files={"document": (f"{stem}.srt", subs["srt"].encode("utf-8"))}, timeout=60)
+                      files={"document": (f"{stem}.{fmt}", subs[fmt].encode("utf-8"))}, timeout=60)
     except Exception as e:
         print("sending subtitles to Telegram failed:", e)
 
