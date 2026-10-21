@@ -11,7 +11,7 @@ server. Without those variables this does nothing. Sending never fails the job.
 
 Must run after patch_handler_payload.py and patch_handler_stream.py: it hooks
 the start of _fit_result_budget (before any JPEG re-encode, so originals are
-sent) and records the job's label in stream_handler.
+sent) and records the job's label and the user's note in stream_handler.
 """
 
 HANDLER_PATH = "/handler.py"
@@ -33,7 +33,10 @@ def _send_telegram(items):
     if not token or not chat:
         return
     label = _TELEGRAM_CTX.get("label") or ""
+    note = (_TELEGRAM_CTX.get("note") or "").strip()[:800]
     caption = (TELEGRAM_LABELS.get(label, label) + " · " if label else "") + time.strftime("%m-%d %H:%M", time.gmtime(time.time() + 8 * 3600))
+    if note:  # the user's own note from the page, shown first so each batch is easy to tell apart
+        caption = note + "\\n" + caption
     sent = 0
     for it in items:
         if it.get("type") != "base64" or not it.get("data"):
@@ -67,7 +70,7 @@ ctx_anchor = '''def stream_handler(job):
 '''
 assert src.count(ctx_anchor) == 1
 src = src.replace(ctx_anchor, ctx_anchor + '''    _TELEGRAM_CTX.clear()
-    _TELEGRAM_CTX.update(label=(job.get("input") or {}).get("history_label"))
+    _TELEGRAM_CTX.update(label=(job.get("input") or {}).get("history_label"), note=(job.get("input") or {}).get("note"))
 ''', 1)
 
 for mod in ("time", "base64", "requests"):

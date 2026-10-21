@@ -47,6 +47,7 @@
     <option value="0.35">几乎全是很轻的气声（可能多出几句没说过的话）</option>
   </select>
   <p class="hint" id="estimate"></p>
+  <input type="text" id="note" maxlength="300" placeholder="备注（可不填）：会和字幕一起发到 Telegram，方便分辨是哪一次" style="width:100%;margin:10px 0 8px;padding:8px;box-sizing:border-box">
   <button id="go" disabled>开始翻译</button>
   <div id="progressBox" style="display:none;margin-top:10px">
     <progress id="bar" max="100" value="0"></progress>
@@ -134,7 +135,7 @@ $('go').onclick = async () => {
       if (!out || !out.ok) throw new Error((out && out.error) || '上传失败');
     }
     setStatus('上传完成，开始听写和翻译…', 50);
-    const job = await post({ action: 'transcribe', upload_id: uploadId, filename: file.name, vad_threshold: parseFloat($('vad').value) });
+    const job = await post({ action: 'transcribe', upload_id: uploadId, filename: file.name, vad_threshold: parseFloat($('vad').value), note: $('note').value.trim() });
     setPending({ id: job.id, name: file.name, at: Date.now() });
     const out = await waitJob(job.id, (st, s) => setStatus(`${st === 'IN_QUEUE' ? '排队 / 启动中' : '翻译中'}…（已等 ${Math.floor(s / 60)} 分 ${s % 60} 秒）`, 60));
     setPending(null);
