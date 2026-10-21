@@ -31,7 +31,37 @@ def clean_stale(max_age_s=86400):
             pass
 
 
+MODEL_DIR = "/runpod-volume/models/asmr_chickenrice"
+HF = "https://huggingface.co/"
+MODEL_FILES = {  # path under MODEL_DIR -> source (the layout infer.py expects in ./models)
+    **{f: HF + "chickenrice0721/whisper-large-v2-translate-zh-v0.2-st-ct2/resolve/main/" + f
+       for f in ("model.bin", "config.json", "preprocessor_config.json", "tokenizer.json", "vocabulary.json")},
+    "whisper_vad.onnx": HF + "TransWithAI/Whisper-Vad-EncDec-ASMR-onnx/resolve/main/model.onnx",
+    "whisper_vad_metadata.json": HF + "TransWithAI/Whisper-Vad-EncDec-ASMR-onnx/resolve/main/model_metadata.json",
+    **{"whisper-base/" + f: HF + "openai/whisper-base/resolve/main/" + f
+       for f in ("preprocessor_config.json", "config.json", "tokenizer.json", "vocab.json")},
+}
+
+
+def ensure_models():
+    """Fetch the models onto the volume the first time a worker in a new data center needs them."""
+    for rel, url in MODEL_FILES.items():
+        dest = os.path.join(MODEL_DIR, rel)
+        if os.path.exists(dest):
+            continue
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        part = f"{dest}.part{os.getpid()}"
+        print("downloading", rel, flush=True)
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(part, "wb") as f:
+                for block in r.iter_content(8 << 20):
+                    f.write(block)
+        os.replace(part, dest)  # atomic, so a half-written file is never taken for a finished one
+
+
 def transcribe(folder, inp):
+    ensure_models()
     name = re.sub(r"[^\w.\- ]", "_", os.path.basename(inp.get("filename") or "audio.mp3"))[-80:]
     if "." not in name:
         name += ".mp3"
