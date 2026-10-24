@@ -208,17 +208,6 @@ RUN for d in sams ultralytics ipadapter LLM kgen; do \
     && rm -rf custom_nodes/comfyui_controlnet_aux/ckpts \
     && ln -s /runpod-volume/models/annotators custom_nodes/comfyui_controlnet_aux/ckpts
 
-# ---- Frame interpolation (RIFE) for the image-to-video page ----------------
-# Wan 2.2 renders at its native 16 fps; the page can ask for 32/48 fps, which
-# RIFE fills in. The small rife47 checkpoint is baked in so cold starts don't
-# have to fetch it.
-RUN cd custom_nodes \
-    && git clone --depth 1 https://github.com/Fannovel16/ComfyUI-Frame-Interpolation.git \
-    && grep -v -iE '^(torch|torchvision|torchaudio|opencv|numpy)' ComfyUI-Frame-Interpolation/requirements-no-cupy.txt > /tmp/req-vfi.txt \
-    && uv pip install --python /opt/venv/bin/python -c /tmp/wf16-constraints.txt -r /tmp/req-vfi.txt \
-    && mkdir -p ComfyUI-Frame-Interpolation/ckpts/rife \
-    && python3 -c "import urllib.request; urllib.request.urlretrieve('https://github.com/Fannovel16/ComfyUI-Frame-Interpolation/releases/download/models/rife47.pth', 'ComfyUI-Frame-Interpolation/ckpts/rife/rife47.pth')"
-
 # The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
 # lines; transitive deps can still silently overwrite LayerStyle's
 # opencv-contrib-python build regardless of filtering. Reinstall contrib as
