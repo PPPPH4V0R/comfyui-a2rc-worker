@@ -208,6 +208,13 @@ RUN for d in sams ultralytics ipadapter LLM kgen; do \
     && rm -rf custom_nodes/comfyui_controlnet_aux/ckpts \
     && ln -s /runpod-volume/models/annotators custom_nodes/comfyui_controlnet_aux/ckpts
 
+# Frame interpolation for the image-to-video page: Wan 2.2 renders at 16 fps
+# and the page's 24/32/48 fps options run ComfyUI's built-in FrameInterpolate
+# node over it. Its loader only looks in models/frame_interpolation (not in
+# the extra_model_paths mapping), so the small RIFE checkpoint is baked in.
+RUN mkdir -p models/frame_interpolation \
+    && python3 -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/Comfy-Org/Frame-Interpolation/resolve/main/frame_interpolation/rife_v4.26.safetensors', 'models/frame_interpolation/rife_v4.26.safetensors')"
+
 # The opencv-exclusion filter above only catches requirements.txt TOP-LEVEL
 # lines; transitive deps can still silently overwrite LayerStyle's
 # opencv-contrib-python build regardless of filtering. Reinstall contrib as
