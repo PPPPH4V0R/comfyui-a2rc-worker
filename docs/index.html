@@ -331,6 +331,11 @@ function updateSubmitEnabled() {
   } else {
     submitEl.disabled = uploadedFiles.length < wf.images || uploadedFiles.slice(0, wf.images).some(f => !f);
   }
+  // Say why the button is grey: the usual reason is that no image has been picked for this workflow
+  // yet (switching workflows clears the picked images).
+  let why = document.getElementById('submitWhy');
+  if (!why) { why = document.createElement('div'); why.id = 'submitWhy'; why.className = 'hint'; submitEl.after(why); }
+  why.textContent = submitEl.disabled ? '先在上面选好图片，按钮才能点（切换工作流后要重新选）' : '';
 }
 
 function renderYuriUI() {
