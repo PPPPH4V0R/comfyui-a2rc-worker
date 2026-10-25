@@ -212,6 +212,13 @@ RUN for d in sams ultralytics ipadapter LLM kgen; do \
 # and the page's 24/32/48 fps options run ComfyUI's built-in FrameInterpolate
 # node over it. Its loader only looks in models/frame_interpolation (not in
 # the extra_model_paths mapping), so the small RIFE checkpoint is baked in.
+# SelfLift progressive sampler for the MiniMax H3 page (no extra pip deps).
+# Its learned H3 latent upscaler is read from models/latent_upscale_models,
+# which extra_model_paths does not map, so that folder points at the volume.
+RUN git clone --depth 1 https://github.com/facok/comfyui-SelfLift.git custom_nodes/comfyui-SelfLift \
+    && rm -rf models/latent_upscale_models \
+    && ln -s /runpod-volume/models/latent_upscale_models models/latent_upscale_models
+
 RUN mkdir -p models/frame_interpolation \
     && python3 -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/Comfy-Org/Frame-Interpolation/resolve/main/frame_interpolation/rife_v4.26.safetensors', 'models/frame_interpolation/rife_v4.26.safetensors')"
 
