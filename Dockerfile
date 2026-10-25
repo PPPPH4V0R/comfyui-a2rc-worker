@@ -43,9 +43,15 @@ RUN uv pip install --python /opt/venv/bin/python --upgrade -r requirements.txt
 # 13) torch build needs. Re-pin torch/vision/audio to the cu126 wheel (same
 # torch version, older CUDA build, needs only driver >=560) as the LAST word
 # on torch -- nothing after this line may touch it again.
+#
+# TORCH_CUDA=cu130 builds the MiniMax H3 image (build-h3.yml) for its own
+# Canada endpoint, whose hosts are limited to CUDA 13 drivers: comfy-kitchen's
+# CUDA kernels (fast int8 linear/attention) only load with a CUDA 13 torch,
+# and without them H3's int8 weights run on the slow eager fallback.
+ARG TORCH_CUDA=cu126
 RUN uv pip install --python /opt/venv/bin/python --force-reinstall \
       torch==2.11.0 torchvision==0.26.0 torchaudio==2.11.0 \
-      --index-url https://download.pytorch.org/whl/cu126
+      --index-url https://download.pytorch.org/whl/${TORCH_CUDA}
 
 # Custom node: LayerUtility: ImageScaleByAspectRatio V2
 # Skip the pinned "torch" line in its requirements.txt so we don't clobber the
