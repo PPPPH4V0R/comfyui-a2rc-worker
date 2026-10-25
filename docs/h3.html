@@ -399,7 +399,11 @@ function watchJob(jobId, statusEl, resultEl, onDone) {
   const started = Date.now();
   const show = file => {
     const ext = ((file.filename || '').split('.').pop() || 'mp4').toLowerCase();
-    const url = 'data:' + (ext === 'webm' ? 'video/webm' : 'video/mp4') + ';base64,' + file.data;
+    // A Blob URL, not a multi-MB data: URL -- phone browsers (iOS Safari especially) won't play those.
+    const bin = atob(file.data);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: ext === 'webm' ? 'video/webm' : 'video/mp4' }));
     shown++;
     resultEl.insertAdjacentHTML('beforeend', '<video src="' + url + '" controls playsinline></video><br><a href="' + url + '" download="h3_result.' + ext + '">下载视频</a>');
   };
