@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MiniMax H3 参考生视频</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
+  h1 { font-size: 1.3rem; }
+  .row { margin: 18px 0; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  label.check { font-weight: 400; }
+  label.check input { width: auto; vertical-align: middle; margin-right: 6px; }
+  select, textarea, input[type=number], input[type=text] { width: 100%; box-sizing: border-box; padding: 10px; font-size: 1rem; border-radius: 6px; border: 1px solid #999; }
+  textarea { min-height: 110px; resize: vertical; }
+  .seed-row { display: flex; gap: 8px; align-items: center; }
+  .seed-row input { flex: 1; }
+  button { padding: 12px 20px; font-size: 1rem; cursor: pointer; border-radius: 6px; border: 1px solid #999; }
+  button.small { padding: 6px 12px; font-size: .85rem; }
+  #submit { width: 100%; font-weight: 600; }
+  #submit:disabled { opacity: .5; }
+  .drop { border: 2px dashed #888; border-radius: 8px; padding: 20px; text-align: center; cursor: pointer; margin-bottom: 8px; }
+  .thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .thumbs div { text-align: center; font-size: .8rem; }
+  .thumbs img { height: 90px; border-radius: 6px; display: block; }
+  #status { margin-top: 14px; font-size: .95rem; color: #888; white-space: pre-line; }
+  #result video { max-width: 100%; border-radius: 8px; margin-top: 10px; }
+  #result a { display: inline-block; margin-top: 8px; }
+  .error { color: #d33; }
+  .hint { font-size: .8rem; color: #999; margin-top: 8px; }
+  details.adv { margin: 18px 0; }
+  details.adv summary { cursor: pointer; font-weight: 600; }
+</style>
+</head>
+<body>
+<h1>MiniMax H3 参考生视频（带声音）</h1>
+<p class="hint"><a href="index.html">← 返回其他工作流</a> · 工作流：Minimax H3 All-In-One Ultra（DMAD + SelfLift 版）· Powered by MiniMax H3（MiniMax H3 Community License）</p>
+
+<div class="row">
+  <label>参考图（1–9 张，必需）</label>
+  <div class="drop" id="imgDrop">点击选择图片（可以多选，再点一次会追加）</div>
+  <input type="file" id="imgFile" accept="image/*" multiple style="display:none">
+  <div class="thumbs" id="imgThumbs"></div>
+  <button type="button" class="small" id="imgClear" style="margin-top:6px">清空参考图</button>
+  <p class="hint">按选择顺序编号为图 1、图 2……，提示词里用 &lt;Picture 1&gt;、&lt;Picture 2&gt; 指明哪张是谁、穿什么、在哪里。参考图不会原样当第一帧，模型会照着它们生成新画面。</p>
+</div>
+
+<div class="row">
+  <label>开头帧 / 结尾帧（可选）</label>
+  <div class="hint" style="margin-top:0">开头帧：视频第一帧就是这张图（和以前的图生视频一样）。结尾帧：视频最后停在这张图。可以只放其中一个，也可以和参考图一起用。</div>
+  <label class="check" style="margin-top:8px">开头帧 <input type="file" id="firstFile" accept="image/*"></label>
+  <label class="check" style="margin-top:6px">结尾帧 <input type="file" id="lastFile" accept="image/*"></label>
+  <div class="thumbs" id="frameThumbs"></div>
+</div>
+
+<div class="row">
+  <label>参考音频（可选，最多 3 段，每段 2–15 秒）</label>
+  <input type="file" id="audioFile" accept="audio/*" multiple>
+  <div class="hint" id="audioList"></div>
+  <p class="hint">比如想要的声音、台词或配乐。提示词里用 &lt;Audio 1&gt; 指代。必须同时有参考图。</p>
+</div>
+
+<div class="row">
+  <label>提示词</label>
+  <textarea id="prompt"></textarea>
+  <label class="check" style="margin-top:6px"><input type="checkbox" id="splitPrompt" checked>按时间分段（把提示词拆成“0–5秒：… 5–10秒：…”）</label>
+  <p class="hint">自己分段：用 <b>|</b> 或换行隔开，时长按段数平均分。没隔开就按句号拆，大约每 5 秒一段。</p>
+  <div class="hint" id="promptPreview" style="white-space:pre-wrap"></div>
+</div>
+
+<div class="row">
+  <label>分辨率（宽 × 高）</label>
+  <select id="sizePreset">
+    <option value="1216x832">1216 × 832 横屏</option>
+    <option value="832x1216">832 × 1216 竖屏</option>
+    <option value="1376x768">1376 × 768 横屏 16:9</option>
+    <option value="768x1376">768 × 1376 竖屏 9:16</option>
+    <option value="960x544">960 × 544 横屏（快）</option>
+    <option value="544x960">544 × 960 竖屏（快）</option>
+    <option value="custom">自定义…</option>
+  </select>
+  <div class="seed-row" id="customSize" style="display:none;margin-top:8px">
+    <input type="number" id="width" value="1216" step="32" min="256" max="1920"> ×
+    <input type="number" id="height" value="832" step="32" min="256" max="1920">
+  </div>
+  <p class="hint">宽高会取整到 32 的倍数。A100（80 GB）上 15 秒最多到约 1 MP（比如 1216×832）；更大的分辨率会显存不足。</p>
+  <label style="margin-top:10px">视频时长（秒）</label>
+  <input type="number" id="seconds" value="15" step="0.5" min="5" max="15">
+  <label style="margin-top:10px">帧率</label>
+  <select id="fps">
+    <option value="24">24 fps（模型原生）</option>
+    <option value="48">48 fps（补帧，更顺滑）</option>
+  </select>
+  <p class="hint">H3 一次生成 5–15 秒，不用分段拼接。时长会对齐到模型要求的帧数，实际可能多零点几秒。</p>
+</div>
+
+<div class="row">
+  <label class="check"><input type="checkbox" id="mystic" checked>MysticXXX LoRA（身体/胸部真实感），强度</label>
+  <input type="number" id="mysticStrength" value="0.5" step="0.05" min="0" max="2">
+  <label class="check" style="margin-top:10px"><input type="checkbox" id="highMotion">打斗 / 大动作修复（Combat + Motion Repair + Fight Flow + 加速 slider）</label>
+</div>
+
+<div class="row">
+  <label>随机种子</label>
+  <div class="seed-row">
+    <input type="number" id="seed">
+    <button type="button" id="randomSeed">🎲 随机</button>
+  </div>
+</div>
+
+<details class="adv">
+  <summary>固定参数（来自原工作流）</summary>
+  <p class="hint">混合模型 minimax_h3_hybrid_fl2va_ref2va_b25-49-int8；DMAD 4 步 LoRA 0.75；Euler + beta 10 步；SelfLift 渐进采样（前 6 步 0.6 倍分辨率，LMS 潜空间放大）；SigmaShift 12 / 3；稀疏注意力 sol-attn。原工作流默认 2 MP（1920×1088）在 A100 上显存不够，这里默认 1216×832。文本编码器用官方 int8 版代替原工作流的 nvfp4 版（A100 不支持 FP4）。</p>
+</details>
+
+<div class="row">
+  <input type="text" id="note" maxlength="300" placeholder="备注（可不填）：会和结果一起发到 Telegram">
+  <button id="submit" disabled style="margin-top:8px">开始生成</button>
+  <div class="hint" id="submitWhy"></div>
+</div>
+
+<div id="status"></div>
+<div id="result"></div>
+
+<p class="hint">生成耗时明显长于图片工作流。服务器在加拿大（H3 的许可证不允许在美国、欧盟、英国、韩国运行），机器冷启动时要先加载约 55 GB 模型。结果也会发到 Telegram。</p>
+
+<script>
+const API_BASE = "https://a2rc-proxy.368014021.workers.dev/h3";
+const FPS = 24;
+const $ = id => document.getElementById(id);
+let imgFiles = [];
+let audioFiles = [];
+const frameFiles = { first: null, last: null };
+
+function randomSeed() { return Math.floor(Math.random() * 1e15); }
+
+function resizeImageFile(file, maxDim = 1536, quality = 0.9) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(img.src);
+      let { width, height } = img;
+      if (width <= maxDim && height <= maxDim && file.size <= 2 * 1024 * 1024) { resolve(file); return; }
+      const scale = Math.min(1, maxDim / Math.max(width, height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('canvas export failed')), 'image/jpeg', quality);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// H3 frame counts sit on a 17k+5 grid at 24 fps; the request is rounded up (same formula as the workflow).
+function frameCount(seconds) {
+  const n = Math.max(5, Math.round(seconds * FPS));
+  return n + (((5 - n) % 17) + 17) % 17;
+}
+
+// Explicit pieces ("|", "｜" or line breaks) become time segments; otherwise sentences are grouped in
+// order into about one segment per 5 s. The duration is shared evenly.
+function timedPrompt(text, seconds) {
+  const t = text.trim();
+  if (!$('splitPrompt').checked) return t;
+  let parts = t.split(/\s*[|｜\n]\s*/).filter(Boolean);
+  if (parts.length <= 1) {
+    const sentences = (t.match(/[^.!?。！？;；]+[.!?。！？;；]*/g) || []).map(s => s.trim()).filter(Boolean);
+    const count = Math.min(sentences.length, Math.ceil(seconds / 5));
+    parts = [];
+    for (let k = 0; k < count; k++) {
+      parts.push(sentences.slice(Math.floor(k * sentences.length / count), Math.floor((k + 1) * sentences.length / count)).join(' '));
+    }
+  }
+  if (parts.length <= 1) return t;
+  const fmt = x => (Math.round(x * 10) / 10).toString();
+  return parts.map((p, k) => `${fmt(k * seconds / parts.length)}-${fmt((k + 1) * seconds / parts.length)}秒：${p}`).join('\n');
+}
+
+function videoSize() {
+  const preset = $('sizePreset').value;
+  const [w, h] = preset === 'custom' ? [$('width').value, $('height').value] : preset.split('x');
+  const snap = v => Math.max(256, Math.round((parseInt(v, 10) || 832) / 32) * 32);
+  return { width: snap(w), height: snap(h) };
+}
+
+function renderPreview() {
+  const seconds = parseFloat($('seconds').value) || 0;
+  if (seconds < 5 || seconds > 15) { $('promptPreview').textContent = '时长请填 5–15 秒'; return; }
+  const len = frameCount(seconds);
+  const { width, height } = videoSize();
+  $('promptPreview').textContent = `输出 ${width}×${height}，${(len / FPS).toFixed(2)} 秒（${len} 帧）。发给模型的提示词：\n` + timedPrompt($('prompt').value, len / FPS);
+}
+
+function updateSubmit() {
+  const ready = imgFiles.length || frameFiles.first || frameFiles.last;
+  $('submit').disabled = !ready;
+  $('submitWhy').textContent = ready ? '' : '先选参考图或开头帧，按钮才能点';
+}
+
+function showFrameThumbs() {
+  $('frameThumbs').innerHTML = '';
+  for (const [key, label] of [['first', '开头帧'], ['last', '结尾帧']]) {
+    if (!frameFiles[key]) continue;
+    const box = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(frameFiles[key]);
+    box.append(img, document.createTextNode(label));
+    $('frameThumbs').appendChild(box);
+  }
+  updateSubmit();
+}
+
+function showThumbs() {
+  $('imgThumbs').innerHTML = '';
+  imgFiles.forEach((f, i) => {
+    const box = document.createElement('div');
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    box.append(img, document.createTextNode('图 ' + (i + 1)));
+    $('imgThumbs').appendChild(box);
+  });
+  updateSubmit();
+}
+
+$('imgDrop').onclick = () => $('imgFile').click();
+$('imgFile').onchange = async () => {
+  for (const raw of Array.from($('imgFile').files)) {
+    if (imgFiles.length >= 9) break;
+    let f = raw;
+    try { f = await resizeImageFile(f); } catch (e) {}
+    imgFiles.push(f);
+  }
+  $('imgFile').value = '';
+  showThumbs();
+};
+$('imgClear').onclick = () => { imgFiles = []; showThumbs(); };
+for (const key of ['first', 'last']) {
+  $(key + 'File').onchange = async () => {
+    let f = $(key + 'File').files[0] || null;
+    if (f) { try { f = await resizeImageFile(f); } catch (e) {} }
+    frameFiles[key] = f;
+    showFrameThumbs();
+  };
+}
+$('audioFile').onchange = () => {
+  audioFiles = Array.from($('audioFile').files).slice(0, 3);
+  $('audioList').textContent = audioFiles.map((f, i) => `音频 ${i + 1}：${f.name}`).join('　');
+};
+$('randomSeed').onclick = () => { $('seed').value = randomSeed(); };
+for (const id of ['prompt', 'seconds', 'splitPrompt', 'sizePreset', 'width', 'height']) { $(id).oninput = renderPreview; $(id).onchange = renderPreview; }
+$('sizePreset').addEventListener('change', () => { $('customSize').style.display = $('sizePreset').value === 'custom' ? 'flex' : 'none'; });
+
+$('prompt').value = '<Picture 1> 中的女生站在原地，看向镜头微笑 | 她抬手整理头发，转身面向侧面 | 她慢慢走近镜头，轻声说“你好呀”';
+$('seed').value = randomSeed();
+renderPreview();
+updateSubmit();
+
+// The All-In-One Ultra workflow as an API graph. Its UI-only parts (Set/Get relays, preview override,
+// the bypassed block-swap and unused upload slots) are left out; VHS Video Combine became CreateVideo + SaveVideo.
+async function buildPayload() {
+  const seconds = parseFloat($('seconds').value);
+  if (!(seconds >= 5 && seconds <= 15)) throw new Error('视频时长请填 5–15 秒');
+  const length = frameCount(seconds);
+  const fps = parseInt($('fps').value, 10) || FPS;
+  const seed = parseInt($('seed').value, 10) || randomSeed();
+  const images = [];
+  const g = {
+    unet: { class_type: 'UNETLoader', inputs: { unet_name: 'minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors', weight_dtype: 'default' } },
+    attn: { class_type: 'ModelAttentionBackend', inputs: { model: ['unet', 0], attention: 'comfy kitchen attention' } },
+    sparse: { class_type: 'BlockSparseAttention', inputs: { model: ['attn', 0], selection: 'sol-attn', 'selection.tau': 1.3, start_percent: 0.2, end_percent: 1, dense_blocks: '', min_tokens: 12288, extra_tokens: 256, sink_conditioning: 'exact_kv_and_rows', verbose: true } },
+    clip: { class_type: 'CLIPLoader', inputs: { clip_name: 'qwen3vl_32b_minimax_h3_int8_convrot.safetensors', type: 'minimax', device: 'default' } },
+    vae: { class_type: 'VAELoader', inputs: { vae_name: 'minimax_h3_video_vae_int8_convrot.safetensors' } },
+    audio_vae: { class_type: 'VAELoader', inputs: { vae_name: 'minimax_h3_audio_vae_fp32.safetensors' } },
+  };
+  const { width, height } = videoSize();
+  if (width * height > 1.1e6) throw new Error('分辨率太大：A100 上最多约 1 MP（比如 1216×832），否则会显存不足');
+  let model = ['sparse', 0];
+  const lora = (id, name, strength) => {
+    g[id] = { class_type: 'LoraLoaderModelOnly', inputs: { model, lora_name: name, strength_model: strength } };
+    model = [id, 0];
+  };
+  if ($('mystic').checked) lora('lora_mystic', 'MysticXXX_MMH3-V1.safetensors', parseFloat($('mysticStrength').value) || 0);
+  lora('lora_dmad', 'minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors', 0.75);
+  if ($('highMotion').checked) {
+    lora('lora_combat', 'H3_Combat_V2.safetensors', 0.65);
+    lora('lora_motion', 'Motion_Repair_V2.safetensors', 0.35);
+    lora('lora_fight', 'H3_Fight_Flow_V1.safetensors', 0.35);
+    lora('lora_speed', 'H3_speed_slider_1.1.safetensors', 3);
+  }
+  g.shift = { class_type: 'MiniMaxH3SigmaShift', inputs: { model, shift_video: 12, shift_audio: 3 } };
+
+  const cond = {
+    clip: ['clip', 0], vae: ['vae', 0], audio_vae: ['audio_vae', 0],
+    prompt: timedPrompt($('prompt').value, length / FPS),
+    width, height, length, ref_image_size: 'max',
+  };
+  let bytes = 0;
+  for (let i = 0; i < imgFiles.length; i++) {
+    const name = 'h3_ref_' + (i + 1) + '.jpg';
+    const b64 = await fileToBase64(imgFiles[i]);
+    bytes += b64.length;
+    images.push({ name, image: b64 });
+    g['ref' + i] = { class_type: 'LoadImage', inputs: { image: name } };
+    cond['ref_images.ref_image_' + i] = ['ref' + i, 0];
+  }
+  for (let i = 0; i < audioFiles.length; i++) {
+    const ext = (audioFiles[i].name.split('.').pop() || 'wav').toLowerCase();
+    const name = 'h3_audio_' + (i + 1) + '.' + ext;
+    const b64 = await fileToBase64(audioFiles[i]);
+    bytes += b64.length;
+    images.push({ name, image: b64 });  // the worker writes every upload into ComfyUI's input folder
+    g['audio' + i] = { class_type: 'LoadAudio', inputs: { audio: name } };
+    cond['ref_audios.ref_audio_' + i] = ['audio' + i, 0];
+  }
+  g.cond = { class_type: 'MiniMaxH3ReferenceToVideo', inputs: cond };
+  // Start / end frames are pinned with H3's AddGuide (as in ComfyUI's multiframe-reference template);
+  // the guides ride on the positive conditioning.
+  let positive = ['cond', 0];
+  for (const [key, frameIdx] of [['first', 0], ['last', -1]]) {
+    if (!frameFiles[key]) continue;
+    const name = 'h3_' + key + '_frame.jpg';
+    const b64 = await fileToBase64(frameFiles[key]);
+    bytes += b64.length;
+    images.push({ name, image: b64 });
+    g[key + '_frame'] = { class_type: 'LoadImage', inputs: { image: name } };
+    g[key + '_guide'] = { class_type: 'MiniMaxH3AddGuide', inputs: { positive, latent: ['cond', 1], frame_idx: frameIdx, vae: ['vae', 0], audio_vae: ['audio_vae', 0], image: [key + '_frame', 0] } };
+    positive = [key + '_guide', 0];
+  }
+  // Runpod's /run rejects bodies over 10 MiB.
+  if (bytes > 9 * 1024 * 1024) throw new Error('上传的文件加起来太大了，少选几个或换小一点的文件');
+  g.negative = { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['cond', 0] } };
+  g.sampler = { class_type: 'KSamplerSelect', inputs: { sampler_name: 'euler' } };
+  g.sigmas = { class_type: 'BasicScheduler', inputs: { model: ['shift', 0], scheduler: 'beta', steps: 10, denoise: 1 } };
+  g.sample = { class_type: 'SelfLiftH3Sampler', inputs: {
+    model: ['shift', 0], positive, negative: ['negative', 0], vae: ['vae', 0], latent_image: ['cond', 1],
+    sampler: ['sampler', 0], sigmas: ['sigmas', 0], seed, cfg: 1, transition_step: 6, lowres_scale: 0.6,
+    rho: 0, w_min: 0.5, w_max: 1, upscaler_model: 'h3_upscaler_lms_v0.1.safetensors', highres_tiling: false, upscaler_unload: true } };
+  g.decode = { class_type: 'VAEDecode', inputs: { samples: ['sample', 0], vae: ['vae', 0] } };
+  g.decode_audio = { class_type: 'VAEDecodeAudio', inputs: { samples: ['sample', 0], vae: ['audio_vae', 0] } };
+  let frames = ['decode', 0];
+  if (fps > FPS) {
+    g.rife_loader = { class_type: 'FrameInterpolationModelLoader', inputs: { model_name: 'rife_v4.26.safetensors' } };
+    g.rife = { class_type: 'FrameInterpolate', inputs: { interp_model: ['rife_loader', 0], images: frames, multiplier: Math.round(fps / FPS) } };
+    frames = ['rife', 0];
+  }
+  g.video = { class_type: 'CreateVideo', inputs: { images: frames, audio: ['decode_audio', 0], fps } };
+  g.save = { class_type: 'SaveVideo', inputs: { video: ['video', 0], filename_prefix: 'video/H3_AIO', format: 'auto', codec: 'auto' } };
+  return { workflow: g, images };
+}
+
+$('submit').onclick = async () => {
+  $('submit').disabled = true;
+  $('result').innerHTML = '';
+  $('status').textContent = '准备文件中…';
+  let payload;
+  try {
+    payload = await buildPayload();
+  } catch (e) {
+    $('status').innerHTML = '<span class="error">准备任务失败: ' + e.message + '</span>';
+    updateSubmit();
+    return;
+  }
+  const note = $('note').value.trim();
+  $('status').textContent = '提交任务中…';
+  let jobId;
+  try {
+    // Videos can pass Runpod's ~20 MB result cap, so they always come back streamed in <1 MB parts.
+    const r = await fetch(API_BASE + '/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: { ...payload, stream_images: true, history_label: 'h3', note } }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    jobId = data.id;
+  } catch (e) {
+    $('status').innerHTML = '<span class="error">提交失败: ' + e.message + '</span>';
+    updateSubmit();
+    return;
+  }
+  addPending({ id: jobId, at: Date.now(), note });
+  watchJob(jobId, $('status'), $('result'), updateSubmit);
+};
+
+// Follows one job until its video is back. Used right after submitting, and again when the page is
+// reopened while a job was still out (their ids are kept in localStorage).
+function watchJob(jobId, statusEl, resultEl, onDone) {
+  let fails = 0, shown = 0;
+  const partial = {};
+  const started = Date.now();
+  const show = file => {
+    const ext = ((file.filename || '').split('.').pop() || 'mp4').toLowerCase();
+    const url = 'data:' + (ext === 'webm' ? 'video/webm' : 'video/mp4') + ';base64,' + file.data;
+    shown++;
+    resultEl.insertAdjacentHTML('beforeend', '<video src="' + url + '" controls playsinline></video><br><a href="' + url + '" download="h3_result.' + ext + '">下载视频</a>');
+  };
+  const finish = (msg, isError) => {
+    statusEl.innerHTML = isError ? '<span class="error">' + msg + '</span>' : msg;
+    removePending(jobId);
+    onDone && onDone();
+  };
+  const fetchJson = async path => { const r = await fetch(API_BASE + path + jobId); return { code: r.status, data: r.ok ? await r.json() : null }; };
+  const progress = st => {
+    const mins = Math.floor((Date.now() - started) / 60000);
+    statusEl.textContent = ({ IN_QUEUE: '排队 / 冷启动中', IN_PROGRESS: '生成中' }[st] || ('状态: ' + (st || '…'))) + `…（已等 ${mins} 分钟）`;
+  };
+  const settle = async () => {
+    const { data, code } = await fetchJson('/status/');
+    if (code === 404) return finish('这个任务的结果已经过期了，去 Telegram 里找', true);
+    const out = data && (Array.isArray(data.output) ? data.output[0] : data.output);
+    if (data && data.status === 'COMPLETED') {
+      ((out && out.images) || []).forEach(show);
+      finish(shown ? '完成！' : '完成，但没有返回视频' + (out && out.error ? '：' + out.error : ''), !shown);
+    } else if (data && ['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(data.status)) {
+      finish('失败: ' + (typeof data.error === 'string' ? data.error : JSON.stringify(data.error || data.status)), true);
+    } else {
+      progress(data && data.status);
+      setTimeout(poll, 4000);
+    }
+  };
+  const poll = async () => {
+    let res;
+    try {
+      res = await fetchJson('/stream/');
+      fails = 0;
+    } catch (e) {
+      fails++;
+      if (fails >= 2) statusEl.textContent = '网络波动，继续重试…（第 ' + fails + ' 次）';
+      setTimeout(poll, Math.min(4000 + fails * 2000, 15000));
+      return;
+    }
+    if (res.code === 404) return finish('这个任务的结果已经过期了，去 Telegram 里找', true);
+    const data = res.data || {};
+    let done = false;
+    for (const chunk of data.stream || []) {
+      const o = chunk.output || {};
+      if (o.parts) {
+        const p = partial[o.index] ??= [];
+        p[o.part] = o.data;
+        const got = p.filter(x => x !== undefined).length;
+        statusEl.textContent = `接收视频中… ${got} / ${o.parts}`;
+        if (got === o.parts) { show({ filename: o.filename, data: p.join('') }); delete partial[o.index]; }
+      }
+      if (o.done) done = o;
+    }
+    if (done) return shown ? finish('完成！') : finish('生成完了，但视频没收全（去 Telegram 里找）', true);
+    if (['COMPLETED', 'FAILED', 'CANCELLED', 'TIMED_OUT'].includes(data.status)) return settle();
+    if (!Object.keys(partial).length) progress(data.status);
+    setTimeout(poll, 4000);
+  };
+  poll();
+}
+
+const PENDING_KEY = 'pendingJobs:' + location.pathname;
+function loadPending() { try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch (e) { return []; } }
+function savePending(list) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(list)); } catch (e) { } }
+function addPending(job) { savePending([...loadPending().filter(j => j.id !== job.id), job]); }
+function removePending(id) { savePending(loadPending().filter(j => j.id !== id)); }
+(function resumePending() {
+  const list = loadPending().filter(j => Date.now() - j.at < 2 * 3600 * 1000);
+  savePending(list);
+  for (const j of list) {
+    const box = document.createElement('div');
+    box.innerHTML = '<p class="hint"></p><div class="hint"></div><div></div>';
+    box.firstChild.textContent = `上次还没取回的任务（${new Date(j.at).toLocaleString()} 提交${j.note ? '，备注：' + j.note : ''}）`;
+    $('status').before(box);
+    watchJob(j.id, box.children[1], box.children[2]);
+  }
+})();
+</script>
+</body>
+</html>
