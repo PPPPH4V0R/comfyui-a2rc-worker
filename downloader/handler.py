@@ -96,6 +96,38 @@ def handler(job):
         total, used, free = shutil.disk_usage(inp.get("path", "/runpod-volume"))
         return {"total": total, "used": used, "free": free}
 
+    if action == "fetch_lora":
+        # Self-serve LoRA download from the web pages: locked to models/loras/ with a safe
+        # filename, and only from civitai.com / huggingface.co — the only write the public
+        # proxy can trigger, so it can't reach arbitrary paths or hosts.
+        url = normalize_url(inp["url"])
+        host = urllib.parse.urlparse(url).hostname or ""
+        if not (host.endswith("civitai.com") or host.endswith("huggingface.co")):
+            return {"error": "只支持 civitai.com 或 huggingface.co 的链接"}
+        name = inp.get("name") or urllib.parse.unquote(url.rstrip("/").split("/")[-1].split("?")[0])
+        name = re.sub(r"[^A-Za-z0-9._ -]", "_", os.path.basename(name)).strip() or "lora"
+        if not name.lower().endswith((".safetensors", ".pt", ".ckpt", ".gguf")):
+            name += ".safetensors"
+        dest = os.path.join("/runpod-volume/models/loras", inp.get("subdir", "").strip("/"), name)
+        if not os.path.realpath(dest).startswith("/runpod-volume/models/loras/"):
+            return {"error": "文件名不合法"}
+        headers = {}
+        if host.endswith("civitai.com") and os.environ.get("CIVITAI_TOKEN"):
+            headers["Authorization"] = f"Bearer {os.environ['CIVITAI_TOKEN']}"
+        if host.endswith("huggingface.co") and os.environ.get("HF_TOKEN"):
+            headers["Authorization"] = f"Bearer {os.environ['HF_TOKEN']}"
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        cmd = ["curl", "-L", "-o", dest, "--fail", "--retry", "3", "--connect-timeout", "30"]
+        for k, v in headers.items():
+            cmd += ["-H", f"{k}: {v}"]
+        cmd.append(url)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=inp.get("timeout", 1800))
+        size = os.path.getsize(dest) if os.path.exists(dest) else 0
+        if r.returncode != 0 and os.path.exists(dest):
+            os.remove(dest)
+        hint = {22: "链接要登录或已失效（Civitai 私有文件换 HuggingFace 镜像）", 404: "链接不对"}.get(r.returncode, "")
+        return {"ok": r.returncode == 0 and size > 0, "name": name, "size": size, "returncode": r.returncode, "hint": hint}
+
     # default: download a URL straight onto the network volume
     url = normalize_url(inp["url"])
     dest = inp["dest"]
