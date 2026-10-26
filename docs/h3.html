@@ -104,6 +104,15 @@
 </div>
 
 <div class="row">
+  <div style="font-weight:600">自定义 LoRA</div>
+  <p class="hint" style="margin:4px 0">自己把 LoRA 文件放到卷上 <code>models/loras/</code> 后，点下面的按钮扫描，再从下拉框里选、填强度。可以加多行。</p>
+  <button type="button" class="small" id="scanLoras">扫描卷上的 LoRA</button>
+  <span id="scanStatus" class="hint"></span>
+  <div id="customLoras" style="margin-top:6px"></div>
+  <button type="button" class="small" id="addLora" style="margin-top:6px" disabled>+ 添加一行 LoRA</button>
+</div>
+
+<div class="row">
   <label>随机种子</label>
   <div class="seed-row">
     <input type="number" id="seed">
@@ -302,6 +311,12 @@ async function buildPayload() {
     lora('lora_fight', 'H3_Fight_Flow_V1.safetensors', 0.35);
     lora('lora_speed', 'H3_speed_slider_1.1.safetensors', 3);
   }
+  // User-picked LoRAs from the 自定义 LoRA rows
+  [...document.querySelectorAll('#customLoras .lora-row')].forEach((row, i) => {
+    const name = row.querySelector('select').value;
+    const strength = parseFloat(row.querySelector('input').value);
+    if (name && strength) lora('lora_custom_' + i, name, strength);
+  });
   g.shift = { class_type: 'MiniMaxH3SigmaShift', inputs: { model, shift_video: 12, shift_audio: 3 } };
 
   const cond = {
@@ -362,6 +377,64 @@ async function buildPayload() {
   g.save = { class_type: 'SaveVideo', inputs: { video: ['video', 0], filename_prefix: 'video/H3_AIO', format: 'auto', codec: 'auto' } };
   return { workflow: g, images };
 }
+
+// ---- 自定义 LoRA: scan the volume (native <select>, so the picker works on phones) ----
+let availableLoras = [];  // filled by 扫描
+const BUILTIN_LORAS = ['MysticXXX_MMH3-V1.safetensors', 'H3_Astro_NSFW_V1.safetensors', 'H3_Combat_V2.safetensors',
+  'Motion_Repair_V2.safetensors', 'H3_Fight_Flow_V1.safetensors', 'H3_speed_slider_1.1.safetensors',
+  'minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors'];
+
+function addLoraRow() {
+  const row = document.createElement('div');
+  row.className = 'lora-row';
+  row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-top:6px';
+  const sel = document.createElement('select');
+  sel.style.cssText = 'flex:1;min-width:0';
+  sel.innerHTML = '<option value="">选择 LoRA…</option>' +
+    availableLoras.map(n => `<option value="${n}">${n.replace(/\.safetensors$/, '')}</option>`).join('');
+  const str = document.createElement('input');
+  str.type = 'number'; str.value = '1.0'; str.step = '0.05'; str.min = '0'; str.max = '2';
+  str.style.width = '70px';
+  const del = document.createElement('button');
+  del.type = 'button'; del.className = 'small'; del.textContent = '✕';
+  del.onclick = () => row.remove();
+  row.append(sel, str, del);
+  document.getElementById('customLoras').append(row);
+}
+
+async function scanLoras() {
+  const btn = $('scanLoras'), st = $('scanStatus');
+  btn.disabled = true;
+  st.textContent = '扫描中…（下载器冷启动要等十几秒）';
+  try {
+    const job = await (await fetch(API_BASE + '/models')).json();
+    if (!job.id) throw new Error(job.error || '代理没有 /h3/models 路由（重新粘贴 cloudflare-worker.js）');
+    let out = null;
+    for (let i = 0; i < 60; i++) {
+      await new Promise(r => setTimeout(r, i ? 3000 : 1500));
+      const d = await (await fetch(API_BASE + '/models/' + job.id)).json();
+      if (d.status === 'COMPLETED') { out = d.output; break; }
+      if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(d.status)) throw new Error(d.error || d.status);
+    }
+    if (!out || !out.loras) throw new Error('没读到列表');
+    // Hide the LoRAs the fixed toggles above already handle, so the picker only shows the extras.
+    availableLoras = out.loras.filter(n => !BUILTIN_LORAS.includes(n));
+    for (const sel of document.querySelectorAll('#customLoras select')) {
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">选择 LoRA…</option>' +
+        availableLoras.map(n => `<option value="${n}">${n.replace(/\.safetensors$/, '')}</option>`).join('');
+      sel.value = cur;
+    }
+    $('addLora').disabled = false;
+    st.textContent = `卷上有 ${availableLoras.length} 个可选 LoRA（上面已固定的不再重复列出）。点"+ 添加一行"来用。`;
+    if (availableLoras.length && !document.querySelector('#customLoras .lora-row')) addLoraRow();
+  } catch (e) {
+    st.innerHTML = '<span style="color:#d33">扫描失败：' + e.message + '</span>';
+  }
+  btn.disabled = false;
+}
+$('scanLoras').onclick = scanLoras;
+$('addLora').onclick = addLoraRow;
 
 $('submit').onclick = async () => {
   $('submit').disabled = true;
