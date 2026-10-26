@@ -98,6 +98,8 @@
 <div class="row">
   <label class="check"><input type="checkbox" id="mystic" checked>MysticXXX LoRA（身体/胸部真实感），强度</label>
   <input type="number" id="mysticStrength" value="0.5" step="0.05" min="0" max="2">
+  <label class="check" style="margin-top:6px"><input type="checkbox" id="astro" checked>Astro LoRA（人体运动 / 解剖更自然，5000 段训练），强度</label>
+  <input type="number" id="astroStrength" value="1.0" step="0.05" min="0" max="2">
   <label class="check" style="margin-top:10px"><input type="checkbox" id="highMotion">打斗 / 大动作修复（Combat + Motion Repair + Fight Flow + 加速 slider）</label>
 </div>
 
@@ -292,6 +294,7 @@ async function buildPayload() {
     model = [id, 0];
   };
   if ($('mystic').checked) lora('lora_mystic', 'MysticXXX_MMH3-V1.safetensors', parseFloat($('mysticStrength').value) || 0);
+  if ($('astro').checked) lora('lora_astro', 'H3_Astro_NSFW_V1.safetensors', parseFloat($('astroStrength').value) || 0);
   lora('lora_dmad', 'minimax_h3_dmad_full_dareties_v4_step600_comfy_fro.safetensors', 0.75);
   if ($('highMotion').checked) {
     lora('lora_combat', 'H3_Combat_V2.safetensors', 0.65);
