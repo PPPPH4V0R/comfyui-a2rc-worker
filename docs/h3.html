@@ -110,6 +110,14 @@
   <span id="scanStatus" class="hint"></span>
   <div id="customLoras" style="margin-top:6px"></div>
   <button type="button" class="small" id="addLora" style="margin-top:6px" disabled>+ 添加一行 LoRA</button>
+  <div style="margin-top:10px">
+    <div style="font-weight:600">下载 LoRA 到卷</div>
+    <p class="hint" style="margin:4px 0">粘贴 HuggingFace 链接下载到卷（加拿大下载器没存 Civitai 密钥，Civitai 私有文件请换 HF 镜像）。下完会自动重新扫描。</p>
+    <input type="text" id="dlUrl" placeholder="HuggingFace 链接" style="width:100%;box-sizing:border-box;margin:2px 0;padding:7px">
+    <input type="text" id="dlName" placeholder="保存文件名（可留空，自动取）" style="width:100%;box-sizing:border-box;margin:2px 0;padding:7px">
+    <button type="button" class="small" id="dlBtn">下载</button>
+    <span id="dlStatus" class="hint"></span>
+  </div>
 </div>
 
 <div class="row">
@@ -435,6 +443,37 @@ async function scanLoras() {
 }
 $('scanLoras').onclick = scanLoras;
 $('addLora').onclick = addLoraRow;
+
+async function downloadLora() {
+  const btn = $('dlBtn'), st = $('dlStatus');
+  const urlv = $('dlUrl').value.trim();
+  if (!urlv) { st.textContent = '先粘贴链接'; return; }
+  btn.disabled = true;
+  st.textContent = '下载中…（大文件要等一会儿）';
+  try {
+    const input = { action: 'fetch_lora', url: urlv, name: $('dlName').value.trim() };
+    const r = await fetch(API_BASE + '/download', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input }) });
+    if (!r.ok) throw new Error(r.status === 404 ? '代理没有 /h3/download 路由（重新粘贴 cloudflare-worker.js）' : 'HTTP ' + r.status);
+    const job = await r.json();
+    if (!job.id) throw new Error(job.error || '提交失败');
+    let out = null;
+    for (let i = 0; i < 120; i++) {
+      await new Promise(res => setTimeout(res, i ? 3000 : 1500));
+      const d = await (await fetch(API_BASE + '/download/' + job.id)).json();
+      if (d.status === 'COMPLETED') { out = d.output; break; }
+      if (['FAILED', 'CANCELLED', 'TIMED_OUT'].includes(d.status)) throw new Error(d.error || d.status);
+    }
+    if (!out || !out.ok) throw new Error((out && (out.hint || out.error)) || '下载失败');
+    st.textContent = `已下载 ${out.name}（${(out.size / 1e6).toFixed(0)} MB）。正在重新扫描…`;
+    $('dlUrl').value = ''; $('dlName').value = '';
+    await scanLoras();
+    st.textContent = `已下载 ${out.name}，点"+ 添加一行"就能选它了。`;
+  } catch (e) {
+    st.innerHTML = '<span style="color:#d33">下载失败：' + e.message + '</span>';
+  }
+  btn.disabled = false;
+}
+$('dlBtn').onclick = downloadLora;
 
 $('submit').onclick = async () => {
   $('submit').disabled = true;
