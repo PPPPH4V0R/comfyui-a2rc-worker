@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MiniMax H3 参考生视频</title>
+<link rel="manifest" href="h3.webmanifest">
+<meta name="theme-color" content="#14161e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="H3 视频">
+<link rel="apple-touch-icon" href="h3-icon-192.png">
+<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('h3-sw.js').catch(() => {});</script>
 <style>
   :root { color-scheme: light dark; }
   body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 20px 16px 60px; }
@@ -283,6 +290,43 @@ $('sizePreset').addEventListener('change', () => { $('customSize').style.display
 
 $('prompt').value = '<Picture 1> 中的女生站在原地，看向镜头微笑 | 她抬手整理头发，转身面向侧面 | 她慢慢走近镜头，轻声说“你好呀”';
 $('seed').value = randomSeed();
+
+// ---- Remember settings + the scanned LoRA list between visits (saved in this browser) ----
+const SETTINGS_KEY = 'h3Settings';
+const PERSIST_IDS = ['prompt', 'note', 'seconds', 'fps', 'width', 'height', 'sizePreset',
+  'mystic', 'mysticStrength', 'astro', 'astroStrength', 'highMotion', 'splitPrompt'];
+function saveSettings() {
+  try {
+    const s = {};
+    for (const id of PERSIST_IDS) { const e = $(id); if (e) s[id] = e.type === 'checkbox' ? e.checked : e.value; }
+    s.availableLoras = availableLoras;
+    s.customRows = [...document.querySelectorAll('#customLoras .lora-row')].map(r =>
+      ({ name: r.querySelector('select').value, strength: r.querySelector('input').value }));
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch (e) { }
+}
+function restoreSettings() {
+  let s; try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null'); } catch (e) { }
+  if (!s) return;
+  for (const id of PERSIST_IDS) {
+    const e = $(id); if (!e || !(id in s)) continue;
+    if (e.type === 'checkbox') e.checked = s[id]; else e.value = s[id];
+  }
+  $('customSize').style.display = $('sizePreset').value === 'custom' ? 'flex' : 'none';
+  if (Array.isArray(s.availableLoras) && s.availableLoras.length) {
+    availableLoras = s.availableLoras;
+    $('addLora').disabled = false;
+    $('scanStatus').textContent = `用的是上次扫描到的 ${availableLoras.length} 个 LoRA（点"扫描"可刷新）`;
+  }
+  for (const row of (s.customRows || [])) {
+    addLoraRow();
+    const r = document.querySelector('#customLoras .lora-row:last-child'), sel = r.querySelector('select');
+    if (row.name && ![...sel.options].some(o => o.value === row.name)) sel.append(el('option', { value: row.name }, row.name.replace(/\.safetensors$/, '')));
+    sel.value = row.name || ''; r.querySelector('input').value = row.strength;
+  }
+}
+function el(tag, attrs, text) { const e = document.createElement(tag); Object.assign(e, attrs); if (text != null) e.textContent = text; return e; }
+
 renderPreview();
 updateSubmit();
 
@@ -474,6 +518,13 @@ async function downloadLora() {
   btn.disabled = false;
 }
 $('dlBtn').onclick = downloadLora;
+
+// Now that availableLoras and the LoRA helpers exist, restore the saved settings and start saving changes.
+restoreSettings();
+document.addEventListener('input', saveSettings, true);
+document.addEventListener('change', saveSettings, true);
+renderPreview();
+updateSubmit();
 
 $('submit').onclick = async () => {
   $('submit').disabled = true;
